@@ -54,6 +54,17 @@ export default function CashFlowApp() {
     }, 300);
   };
 
+  const [isDailyDashOpen, setIsDailyDashOpen] = useState(false);
+  const [isDailyDashClosing, setIsDailyDashClosing] = useState(false);
+
+  const closeDailyDash = () => {
+    setIsDailyDashClosing(true);
+    setTimeout(() => {
+      setIsDailyDashOpen(false);
+      setIsDailyDashClosing(false);
+    }, 300);
+  };
+
   useEffect(() => {
     if (isSavingsDashboardOpen) {
       const timer = setTimeout(() => setShowSavingsProgress(true), 150);
@@ -288,6 +299,34 @@ export default function CashFlowApp() {
     const economiasPercent = entradas > 0 ? (investimentos / entradas) * 100 : 0;
     const diarioMedio = daysInMonth > 0 ? totalGastos / daysInMonth : 0;
 
+    // Dados do orçamento
+    const orcamentoMensal = budgets.reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
+    const diarioPrevisto = budgets.reduce((sum, b) => {
+      const amt = Number(b.amount) || 0;
+      const div = Number(b.divideBy) || 30;
+      return sum + (amt / div);
+    }, 0);
+
+    // Dias decorridos no mês
+    const today = new Date();
+    let diasDecorridos = daysInMonth;
+    if (targetYear === today.getFullYear() && targetMonth === today.getMonth()) {
+      diasDecorridos = today.getDate();
+    } else if (targetYear > today.getFullYear() || (targetYear === today.getFullYear() && targetMonth > today.getMonth())) {
+      diasDecorridos = 0;
+    }
+
+    const sobraOrcamento = orcamentoMensal - totalGastos;
+    const projecaoMes = diasDecorridos > 0 ? (totalGastos / diasDecorridos) * daysInMonth : 0;
+    const gastoUsadoPercent = orcamentoMensal > 0 ? (totalGastos / orcamentoMensal) * 100 : 0;
+
+    // Dados exclusivos do dashboard diário (apenas gasto_diario)
+    const totalGastoDiarioOnly = gastoDiario;
+    const diarioMedioOnly = daysInMonth > 0 ? totalGastoDiarioOnly / daysInMonth : 0;
+    const sobraOrcamentoDaily = orcamentoMensal - totalGastoDiarioOnly;
+    const projecaoMesDaily = diasDecorridos > 0 ? (totalGastoDiarioOnly / diasDecorridos) * daysInMonth : 0;
+    const gastoUsadoPercentDaily = orcamentoMensal > 0 ? (totalGastoDiarioOnly / orcamentoMensal) * 100 : 0;
+
     return {
       entradas,
       totalGastos,
@@ -296,9 +335,20 @@ export default function CashFlowApp() {
       economiasPercent,
       diarioMedio,
       daysInMonth,
+      orcamentoMensal,
+      diarioPrevisto,
+      diasDecorridos,
+      sobraOrcamento,
+      projecaoMes,
+      gastoUsadoPercent,
+      totalGastoDiarioOnly,
+      diarioMedioOnly,
+      sobraOrcamentoDaily,
+      projecaoMesDaily,
+      gastoUsadoPercentDaily,
       monthLabel: currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
     };
-  }, [transactions, currentDate]);
+  }, [transactions, budgets, currentDate]);
 
   const getBalanceColor = (balance: number) => {
     if (balance >= 2000) return 'bg-emerald-800 text-emerald-100 font-bold';
@@ -826,13 +876,115 @@ export default function CashFlowApp() {
               </div>
 
               {/* Card 4: Diário Médio */}
-              <div className="bg-gray-800 border border-amber-900/30 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+              <button
+                onClick={() => { setIsDailyDashOpen(true); }}
+                className="w-full bg-gray-800 border border-amber-900/30 rounded-2xl p-5 shadow-lg relative overflow-hidden text-left hover:border-amber-700/50 transition-colors active:scale-[0.98] cursor-pointer group"
+              >
                 <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/10 rounded-full blur-2xl -mr-8 -mt-8"></div>
-                <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">Diário Médio</h3>
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider">Diário Médio</h3>
+                  <ChevronRight size={16} className="text-gray-600 group-hover:text-amber-400 transition-colors" />
+                </div>
                 <span className="text-2xl font-extrabold text-amber-400 tracking-tight tabular-nums">
                   {formatCurrency(monthlyTotals.diarioMedio)}
                 </span>
                 <p className="text-[10px] text-gray-500 mt-2">Custo de vida ÷ {monthlyTotals.daysInMonth} dias do mês</p>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* --- DASHBOARD DIÁRIO MÉDIO --- */}
+        {(isDailyDashOpen || isDailyDashClosing) && (
+          <div className={`absolute inset-0 bg-gray-950 z-50 flex flex-col overflow-hidden ${isDailyDashClosing ? 'animate-slide-down' : 'animate-slide-up'}`}>
+            <div className="flex justify-between items-center p-4 border-b border-gray-800 bg-gray-900 shrink-0">
+              <h2 className="text-lg font-bold text-amber-400 flex items-center gap-2">
+                <Wallet size={22} /> Análise Diária
+              </h2>
+              <button onClick={closeDailyDash} className="text-gray-400 hover:text-white transition-colors bg-gray-800 p-2 rounded-full">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-4 flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-4">
+              <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold text-center capitalize">{monthlyTotals.monthLabel}</p>
+
+              {/* Orçamento Mensal */}
+              <div className="bg-gray-800 border border-blue-900/30 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl -mr-8 -mt-8"></div>
+                <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">Orçamento Mensal</h3>
+                <span className="text-2xl font-extrabold text-blue-400 tracking-tight tabular-nums">
+                  {formatCurrency(monthlyTotals.orcamentoMensal)}
+                </span>
+                <p className="text-[10px] text-gray-500 mt-2">Total que poderia gastar no mês (soma dos orçamentos)</p>
+              </div>
+
+              {/* Já Gastei (apenas gasto diário) */}
+              <div className="bg-gray-800 border border-red-900/30 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-red-500/10 rounded-full blur-2xl -mr-8 -mt-8"></div>
+                <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">Já Gastei</h3>
+                <span className="text-2xl font-extrabold text-red-400 tracking-tight tabular-nums">
+                  {formatCurrency(monthlyTotals.totalGastoDiarioOnly)}
+                </span>
+                {/* Barra de uso do orçamento */}
+                <div className="w-full bg-gray-900 h-2.5 rounded-full overflow-hidden border border-gray-700 mt-3">
+                  <div
+                    className={`h-full rounded-full transition-all duration-700 ease-out ${monthlyTotals.gastoUsadoPercentDaily > 100 ? 'bg-gradient-to-r from-red-600 to-red-400' : 'bg-gradient-to-r from-amber-600 to-amber-400'}`}
+                    style={{ width: `${Math.min(monthlyTotals.gastoUsadoPercentDaily, 100)}%` }}
+                  ></div>
+                </div>
+                <p className="text-[10px] text-gray-500 mt-2">{monthlyTotals.gastoUsadoPercentDaily.toFixed(1)}% do orçamento usado • {monthlyTotals.diasDecorridos} de {monthlyTotals.daysInMonth} dias</p>
+              </div>
+
+              {/* Sobra do Orçamento */}
+              <div className={`bg-gray-800 border ${monthlyTotals.sobraOrcamentoDaily >= 0 ? 'border-green-900/30' : 'border-red-900/30'} rounded-2xl p-5 shadow-lg relative overflow-hidden`}>
+                <div className={`absolute top-0 right-0 w-24 h-24 ${monthlyTotals.sobraOrcamentoDaily >= 0 ? 'bg-green-500/10' : 'bg-red-500/10'} rounded-full blur-2xl -mr-8 -mt-8`}></div>
+                <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">Sobra do Orçamento</h3>
+                <span className={`text-2xl font-extrabold tracking-tight tabular-nums ${monthlyTotals.sobraOrcamentoDaily >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {formatCurrency(monthlyTotals.sobraOrcamentoDaily)}
+                </span>
+                <p className="text-[10px] text-gray-500 mt-2">
+                  {monthlyTotals.sobraOrcamentoDaily >= 0 
+                    ? 'Valor que ainda pode gastar dentro do orçamento'
+                    : 'Você ultrapassou o orçamento do mês!'}
+                </p>
+              </div>
+
+              {/* Projeção do Mês */}
+              {monthlyTotals.diasDecorridos > 0 && (
+                <div className={`bg-gray-800 border ${monthlyTotals.projecaoMesDaily <= monthlyTotals.orcamentoMensal ? 'border-cyan-900/30' : 'border-orange-900/30'} rounded-2xl p-5 shadow-lg relative overflow-hidden`}>
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-cyan-500/10 rounded-full blur-2xl -mr-8 -mt-8"></div>
+                  <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">Projeção do Mês</h3>
+                  <span className={`text-2xl font-extrabold tracking-tight tabular-nums ${monthlyTotals.projecaoMesDaily <= monthlyTotals.orcamentoMensal ? 'text-cyan-400' : 'text-orange-400'}`}>
+                    {formatCurrency(monthlyTotals.projecaoMesDaily)}
+                  </span>
+                  <p className="text-[10px] text-gray-500 mt-2">
+                    Se continuar nesse ritmo ({formatCurrency(monthlyTotals.diarioMedioOnly)}/dia), gastará esse total até o fim do mês
+                  </p>
+                </div>
+              )}
+
+              {/* Comparativo Real vs Previsto */}
+              <div className="bg-gray-800 border border-amber-900/30 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/10 rounded-full blur-2xl -mr-8 -mt-8"></div>
+                <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-3">Gasto Diário: Real vs Previsto</h3>
+                <div className="flex gap-4">
+                  <div className="flex-1 bg-gray-900/60 border border-gray-700 rounded-xl p-3 text-center">
+                    <span className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">Real</span>
+                    <span className="text-lg font-extrabold text-amber-400 tabular-nums">{formatCurrency(monthlyTotals.diarioMedioOnly)}</span>
+                  </div>
+                  <div className="flex-1 bg-gray-900/60 border border-gray-700 rounded-xl p-3 text-center">
+                    <span className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">Previsto</span>
+                    <span className="text-lg font-extrabold text-blue-400 tabular-nums">{formatCurrency(monthlyTotals.diarioPrevisto)}</span>
+                  </div>
+                </div>
+                <p className={`text-[10px] mt-3 font-medium text-center ${
+                  monthlyTotals.diarioMedioOnly <= monthlyTotals.diarioPrevisto ? 'text-green-400' : 'text-red-400'
+                }`}>
+                  {monthlyTotals.diarioMedioOnly <= monthlyTotals.diarioPrevisto 
+                    ? `✅ Dentro do previsto! Economizando ${formatCurrency(monthlyTotals.diarioPrevisto - monthlyTotals.diarioMedioOnly)}/dia` 
+                    : `⚠️ Acima do previsto em ${formatCurrency(monthlyTotals.diarioMedioOnly - monthlyTotals.diarioPrevisto)}/dia`}
+                </p>
               </div>
             </div>
           </div>
