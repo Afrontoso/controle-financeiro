@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Plus, ChevronLeft, ChevronRight, Wallet, X, Target, Trash2, Edit2, TrendingUp } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, Wallet, X, Target, Trash2, Edit2, TrendingUp, Calculator } from 'lucide-react';
 
 // Tipagens
 interface Transaction {
@@ -35,12 +35,22 @@ export default function CashFlowApp() {
   const [isSavingsDashboardOpen, setIsSavingsDashboardOpen] = useState(false);
   const [isSavingsClosing, setIsSavingsClosing] = useState(false);
   const [showSavingsProgress, setShowSavingsProgress] = useState(false);
+  const [isTotalsOpen, setIsTotalsOpen] = useState(false);
+  const [isTotalsClosing, setIsTotalsClosing] = useState(false);
 
   const closeSavingsDashboard = () => {
     setIsSavingsClosing(true);
     setTimeout(() => {
       setIsSavingsDashboardOpen(false);
       setIsSavingsClosing(false);
+    }, 300);
+  };
+
+  const closeTotals = () => {
+    setIsTotalsClosing(true);
+    setTimeout(() => {
+      setIsTotalsOpen(false);
+      setIsTotalsClosing(false);
     }, 300);
   };
 
@@ -66,7 +76,7 @@ export default function CashFlowApp() {
         id: t.id,
         // Remove a parte de hora para bater string com o loop manual, converte DB datetime em string pura YYYY-MM-DD local
         date: new Date(new Date(t.date).getTime() + new Date(t.date).getTimezoneOffset() * 60000).toISOString().split('T')[0],
-        type: t.category && ['entrada', 'saida', 'cartao', 'investimento'].includes(t.category) ? t.category : (t.amount > 0 ? 'entrada' : 'saida'),
+        type: t.category && ['entrada', 'saida', 'cartao', 'investimento', 'gasto_diario'].includes(t.category) ? t.category : (t.amount > 0 ? 'entrada' : 'saida'),
         amount: Math.abs(t.amount), // Amount absoluto pra o protótipo
         description: t.description,
         category: t.category,
@@ -166,28 +176,29 @@ export default function CashFlowApp() {
       let sumSaidas = 0;
       let sumCartao = 0;
       let sumInvestimentos = 0;
+      let sumGastoDiario = 0;
 
       dayTxs.forEach((t: any) => {
         if (t.type === 'entrada') sumEntradas += t.amount;
         if (t.type === 'saida') sumSaidas += t.amount;
         if (t.type === 'cartao') sumCartao += t.amount;
         if (t.type === 'investimento') sumInvestimentos += t.amount;
+        if (t.type === 'gasto_diario') sumGastoDiario += t.amount;
       });
 
       let projectedDrain = 0;
       let diarioDisplayValue = 0;
 
       if (isPastDay) {
-        // Se o dia DE ONTEM ou para trás já acabou, não drena o orçamento fixo mais, foi o q foi.
         projectedDrain = 0;
-        diarioDisplayValue = sumSaidas + sumCartao;
+        diarioDisplayValue = sumSaidas + sumCartao + sumGastoDiario;
       } else {
         // Para Hoje (até 23:59) e para os próximos anos: Reserva a Cota Global Diária no Saldo Projetado
         projectedDrain = globalDailyDrain;
         diarioDisplayValue = globalDailyDrain;
       }
 
-      runningBalance += sumEntradas - (sumSaidas + sumCartao + sumInvestimentos) - projectedDrain;
+      runningBalance += sumEntradas - (sumSaidas + sumCartao + sumInvestimentos + sumGastoDiario) - projectedDrain;
 
       if (y === targetYear && m === targetMonth) {
         daysData.push({
@@ -197,6 +208,7 @@ export default function CashFlowApp() {
           saidas: sumSaidas,
           cartao: sumCartao,
           investimentos: sumInvestimentos,
+          gastoDiario: sumGastoDiario,
           diario: diarioDisplayValue,
           isPastDay,
           isToday,
@@ -248,6 +260,46 @@ export default function CashFlowApp() {
     return { ...metrics, totalPercent, yearViewed };
   }, [transactions, currentDate]);
 
+  // --- MOTOR TOTAIS MENSAIS ---
+  const monthlyTotals = useMemo(() => {
+    const targetYear = currentDate.getFullYear();
+    const targetMonth = currentDate.getMonth();
+    const daysInMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
+
+    let entradas = 0;
+    let saidas = 0;
+    let cartao = 0;
+    let investimentos = 0;
+    let gastoDiario = 0;
+
+    transactions.forEach(t => {
+      const [y, mStr] = t.date.split('-');
+      if (Number(y) === targetYear && Number(mStr) - 1 === targetMonth) {
+        if (t.type === 'entrada') entradas += t.amount;
+        if (t.type === 'saida') saidas += t.amount;
+        if (t.type === 'cartao') cartao += t.amount;
+        if (t.type === 'investimento') investimentos += t.amount;
+        if (t.type === 'gasto_diario') gastoDiario += t.amount;
+      }
+    });
+
+    const totalGastos = saidas + cartao + gastoDiario;
+    const performance = entradas - totalGastos - investimentos;
+    const economiasPercent = entradas > 0 ? (investimentos / entradas) * 100 : 0;
+    const diarioMedio = daysInMonth > 0 ? totalGastos / daysInMonth : 0;
+
+    return {
+      entradas,
+      totalGastos,
+      investimentos,
+      performance,
+      economiasPercent,
+      diarioMedio,
+      daysInMonth,
+      monthLabel: currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+    };
+  }, [transactions, currentDate]);
+
   const getBalanceColor = (balance: number) => {
     if (balance >= 2000) return 'bg-emerald-800 text-emerald-100 font-bold';
     if (balance > 500 && balance < 2000) return 'bg-green-600 text-white font-semibold';
@@ -271,6 +323,7 @@ export default function CashFlowApp() {
     if (filter === 'saidas') realType = 'saida';
     if (filter === 'cartao') realType = 'cartao';
     if (filter === 'investimento') realType = 'investimento';
+    if (filter === 'gasto_diario') realType = 'gasto_diario';
 
     const isPositiveForce = realType === 'entrada';
     let realAmount = parseFloat(txFormData.amount);
@@ -377,11 +430,11 @@ export default function CashFlowApp() {
           </div>
 
           <button
-            onClick={() => setIsSavingsDashboardOpen(true)}
-            className="flex items-center justify-center w-10 h-10 bg-gray-900 hover:bg-gray-800 rounded-xl shadow-inner border border-gray-700 transition-colors active:scale-95 cursor-pointer text-emerald-400"
-            title="Dashboard de Economias"
+            onClick={() => setIsTotalsOpen(true)}
+            className="flex items-center justify-center w-10 h-10 bg-gray-900 hover:bg-gray-800 rounded-xl shadow-inner border border-gray-700 transition-colors active:scale-95 cursor-pointer text-blue-400"
+            title="Totais do Mês"
           >
-            <TrendingUp size={20} />
+            <Calculator size={20} />
           </button>
         </header>
 
@@ -393,6 +446,7 @@ export default function CashFlowApp() {
             <option value="saidas">Saídas</option>
             <option value="cartao">Cartão de Crédito</option>
             <option value="investimento">Investimento / Reservas</option>
+            <option value="gasto_diario">Gasto Diário</option>
           </select>
         </div>
 
@@ -423,6 +477,9 @@ export default function CashFlowApp() {
               } else if (filter === 'investimento') {
                 centerValue = data.investimentos;
                 centerColor = data.investimentos > 0 ? 'text-emerald-300' : 'text-gray-600';
+              } else if (filter === 'gasto_diario') {
+                centerValue = data.gastoDiario;
+                centerColor = data.gastoDiario > 0 ? 'text-amber-400' : 'text-gray-600';
               }
 
               return (
@@ -497,6 +554,7 @@ export default function CashFlowApp() {
                 if (filter === 'saidas') defaultType = 'saida';
                 if (filter === 'cartao') defaultType = 'cartao';
                 if (filter === 'investimento') defaultType = 'investimento';
+                if (filter === 'gasto_diario') defaultType = 'gasto_diario';
 
                 setTxFormData(p => ({ ...p, date: todayDate.toISOString().split('T')[0], type: defaultType }));
                 setIsTxModalOpen(true);
@@ -597,6 +655,7 @@ export default function CashFlowApp() {
                         let txColor = tx.type === 'entrada' ? 'text-green-400' : 'text-red-400';
                         if (tx.type === 'cartao') txColor = 'text-purple-400';
                         if (tx.type === 'investimento') txColor = 'text-emerald-300';
+                        if (tx.type === 'gasto_diario') txColor = 'text-amber-400';
 
                         return (
                           <div key={tx.id} className="flex justify-between items-center bg-gray-800 p-3 rounded-lg border border-gray-700">
@@ -629,6 +688,7 @@ export default function CashFlowApp() {
                     <label className={`cursor-pointer border rounded-lg p-2 text-center text-sm font-medium transition-colors ${txFormData.type === 'saida' ? 'bg-red-900/30 border-red-500 text-red-400' : 'border-gray-700 text-gray-400 hover:bg-gray-800'}`}><input type="radio" name="type" value="saida" checked={txFormData.type === 'saida'} onChange={(e) => setTxFormData({ ...txFormData, type: e.target.value })} className="hidden" /> Saída</label>
                     <label className={`cursor-pointer border rounded-lg p-2 text-center text-sm font-medium transition-colors ${txFormData.type === 'cartao' ? 'bg-purple-900/30 border-purple-500 text-purple-400' : 'border-gray-700 text-gray-400 hover:bg-gray-800'}`}><input type="radio" name="type" value="cartao" checked={txFormData.type === 'cartao'} onChange={(e) => setTxFormData({ ...txFormData, type: e.target.value })} className="hidden" /> Cartão</label>
                     <label className={`cursor-pointer border rounded-lg p-2 text-center text-sm font-medium transition-colors ${txFormData.type === 'investimento' ? 'bg-emerald-900/30 border-emerald-500 text-emerald-300' : 'border-gray-700 text-gray-400 hover:bg-gray-800'}`}><input type="radio" name="type" value="investimento" checked={txFormData.type === 'investimento'} onChange={(e) => setTxFormData({ ...txFormData, type: e.target.value })} className="hidden" /> Reserva</label>
+                    <label className={`cursor-pointer border rounded-lg p-2 text-center text-sm font-medium transition-colors col-span-2 ${txFormData.type === 'gasto_diario' ? 'bg-amber-900/30 border-amber-500 text-amber-400' : 'border-gray-700 text-gray-400 hover:bg-gray-800'}`}><input type="radio" name="type" value="gasto_diario" checked={txFormData.type === 'gasto_diario'} onChange={(e) => setTxFormData({ ...txFormData, type: e.target.value })} className="hidden" /> Gasto Diário</label>
                   </div>
                 )}
 
@@ -688,6 +748,92 @@ export default function CashFlowApp() {
                 <input type="number" min="1" max="31" placeholder="Dividir por (Dias)" value={budgetFormData.divideBy} onChange={(e) => setBudgetFormData({ ...budgetFormData, divideBy: e.target.value })} className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg p-3 outline-none" required />
                 <button type="submit" className="w-full bg-blue-600 text-white font-semibold rounded-lg p-3">Salvar</button>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* --- PAINEL DE TOTAIS MENSAIS --- */}
+        {(isTotalsOpen || isTotalsClosing) && (
+          <div className={`absolute inset-0 bg-gray-950 z-40 flex flex-col overflow-hidden ${isTotalsClosing ? 'animate-slide-down' : 'animate-slide-up'}`}>
+            <div className="flex justify-between items-center p-4 border-b border-gray-800 bg-gray-900 shrink-0">
+              <h2 className="text-lg font-bold text-blue-400 flex items-center gap-2">
+                <Calculator size={22} /> Totais
+              </h2>
+              <button onClick={closeTotals} className="text-gray-400 hover:text-white transition-colors bg-gray-800 p-2 rounded-full">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="bg-gray-900 p-3 border-b border-gray-800 flex justify-center shrink-0">
+              <div className="flex items-center bg-gray-800 rounded-lg p-1 border border-gray-700 shadow-sm">
+                <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))} className="p-1 hover:text-blue-400 text-gray-400 hover:bg-gray-700 rounded-md transition-colors"><ChevronLeft size={18} /></button>
+                <span className="font-semibold text-sm capitalize tracking-widest w-24 text-center select-none text-gray-100">
+                  {currentDate.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }).replace('.', '').replace(' de ', '/')}
+                </span>
+                <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))} className="p-1 hover:text-blue-400 text-gray-400 hover:bg-gray-700 rounded-md transition-colors"><ChevronRight size={18} /></button>
+              </div>
+            </div>
+
+            <div className="p-4 flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-4">
+              {/* Título do mês */}
+              <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold text-center capitalize">{monthlyTotals.monthLabel}</p>
+
+              {/* Card 1: Performance */}
+              <div className="bg-gray-800 border border-gray-700 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl -mr-8 -mt-8"></div>
+                <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">Performance</h3>
+                <span className={`text-2xl font-extrabold tracking-tight tabular-nums ${monthlyTotals.performance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {formatCurrency(monthlyTotals.performance)}
+                </span>
+                <p className="text-[10px] text-gray-500 mt-2">Entradas ({formatCurrency(monthlyTotals.entradas)}) − Gastos − Reservas</p>
+              </div>
+
+              {/* Card 2: Economias */}
+              <button
+                onClick={() => { setIsSavingsDashboardOpen(true); }}
+                className="w-full bg-gray-800 border border-emerald-900/50 rounded-2xl p-5 shadow-lg relative overflow-hidden text-left hover:border-emerald-700/60 transition-colors active:scale-[0.98] cursor-pointer group"
+              >
+                <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl -mr-8 -mt-8"></div>
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider">Economias</h3>
+                  <ChevronRight size={16} className="text-gray-600 group-hover:text-emerald-400 transition-colors" />
+                </div>
+                <div className="flex items-baseline gap-2 mb-3">
+                  <span className="text-2xl font-extrabold text-emerald-400 tracking-tight tabular-nums">
+                    {formatCurrency(monthlyTotals.investimentos)}
+                  </span>
+                  <span className="text-sm font-medium text-emerald-400 bg-emerald-900/40 px-2 py-0.5 rounded-md">
+                    {monthlyTotals.economiasPercent.toFixed(1)}%
+                  </span>
+                </div>
+                <div className="w-full bg-gray-900 h-2.5 rounded-full overflow-hidden border border-gray-700">
+                  <div
+                    className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full transition-all duration-700 ease-out"
+                    style={{ width: `${Math.min(monthlyTotals.economiasPercent, 100)}%` }}
+                  ></div>
+                </div>
+                <p className="text-[10px] text-gray-500 mt-2">Reservas / Investimentos do mês</p>
+              </button>
+
+              {/* Card 3: Custo de Vida */}
+              <div className="bg-gray-800 border border-red-900/30 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-red-500/10 rounded-full blur-2xl -mr-8 -mt-8"></div>
+                <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">Custo de Vida</h3>
+                <span className="text-2xl font-extrabold text-red-400 tracking-tight tabular-nums">
+                  {formatCurrency(monthlyTotals.totalGastos)}
+                </span>
+                <p className="text-[10px] text-gray-500 mt-2">Soma de saídas + cartão + gasto diário</p>
+              </div>
+
+              {/* Card 4: Diário Médio */}
+              <div className="bg-gray-800 border border-amber-900/30 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/10 rounded-full blur-2xl -mr-8 -mt-8"></div>
+                <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">Diário Médio</h3>
+                <span className="text-2xl font-extrabold text-amber-400 tracking-tight tabular-nums">
+                  {formatCurrency(monthlyTotals.diarioMedio)}
+                </span>
+                <p className="text-[10px] text-gray-500 mt-2">Custo de vida ÷ {monthlyTotals.daysInMonth} dias do mês</p>
+              </div>
             </div>
           </div>
         )}
