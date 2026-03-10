@@ -21,8 +21,7 @@ interface Budget {
 }
 
 export default function CashFlowApp() {
-  // Fixado na data atual do seu contexto (09 de Março de 2026) conforme seu protótipo
-  const [todayDate] = useState(new Date(2026, 2, 9));
+  const [todayDate] = useState(new Date());
   const [currentDate, setCurrentDate] = useState(new Date(todayDate.getFullYear(), todayDate.getMonth(), 1));
 
   const [isFabOpen, setIsFabOpen] = useState(false);
@@ -34,7 +33,16 @@ export default function CashFlowApp() {
   const [isTxModalOpen, setIsTxModalOpen] = useState(false);
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
   const [isSavingsDashboardOpen, setIsSavingsDashboardOpen] = useState(false);
+  const [isSavingsClosing, setIsSavingsClosing] = useState(false);
   const [showSavingsProgress, setShowSavingsProgress] = useState(false);
+
+  const closeSavingsDashboard = () => {
+    setIsSavingsClosing(true);
+    setTimeout(() => {
+      setIsSavingsDashboardOpen(false);
+      setIsSavingsClosing(false);
+    }, 300);
+  };
 
   useEffect(() => {
     if (isSavingsDashboardOpen) {
@@ -565,8 +573,8 @@ export default function CashFlowApp() {
 
         {/* --- MODAIS --- */}
         {isTxModalOpen && (
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4">
-            <div className="bg-gray-900 w-full max-w-sm max-h-[90vh] flex flex-col rounded-2xl sm:rounded-xl shadow-2xl border border-gray-800 overflow-hidden animate-slide-up">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4 animate-fade-in">
+            <div className="bg-gray-900 w-full max-w-sm max-h-[90vh] flex flex-col rounded-2xl sm:rounded-xl shadow-2xl border border-gray-800 overflow-hidden animate-zoom-in">
               <div className="flex justify-between items-center p-4 border-b border-gray-800 shrink-0">
                 <h2 className="text-lg font-semibold text-white">Transações do Dia</h2>
                 <button onClick={() => setIsTxModalOpen(false)} className="text-gray-400"><X size={20} /></button>
@@ -685,15 +693,25 @@ export default function CashFlowApp() {
         )}
 
         {/* --- MODAL DO DASHBOARD ANUAL DE ECONOMIAS --- */}
-        {isSavingsDashboardOpen && (
-          <div className="absolute inset-0 bg-gray-950 z-50 flex flex-col overflow-hidden animate-slide-up">
+        {(isSavingsDashboardOpen || isSavingsClosing) && (
+          <div className={`absolute inset-0 bg-gray-950 z-50 flex flex-col overflow-hidden ${isSavingsClosing ? 'animate-slide-down' : 'animate-slide-up'}`}>
             <div className="flex justify-between items-center p-4 border-b border-gray-800 bg-gray-900 shrink-0">
               <h2 className="text-lg font-bold text-emerald-400 flex items-center gap-2">
-                <TrendingUp size={22} /> Desempenho {annualSavingsData.yearViewed}
+                <TrendingUp size={22} /> Desempenho Anual
               </h2>
-              <button onClick={() => setIsSavingsDashboardOpen(false)} className="text-gray-400 hover:text-white transition-colors bg-gray-800 p-2 rounded-full">
+              <button onClick={closeSavingsDashboard} className="text-gray-400 hover:text-white transition-colors bg-gray-800 p-2 rounded-full">
                 <X size={20} />
               </button>
+            </div>
+
+            <div className="bg-gray-900 p-3 border-b border-gray-800 flex justify-center shrink-0">
+              <div className="flex items-center bg-gray-800 rounded-lg p-1 border border-gray-700 shadow-sm">
+                <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear() - 1, currentDate.getMonth(), 1))} className="p-1 hover:text-emerald-400 text-gray-400 hover:bg-gray-700 rounded-md transition-colors"><ChevronLeft size={18} /></button>
+                <span className="font-semibold text-sm tracking-widest w-20 text-center select-none text-gray-100">
+                  {annualSavingsData.yearViewed}
+                </span>
+                <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear() + 1, currentDate.getMonth(), 1))} className="p-1 hover:text-emerald-400 text-gray-400 hover:bg-gray-700 rounded-md transition-colors"><ChevronRight size={18} /></button>
+              </div>
             </div>
 
             <div className="p-5 flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-6">
@@ -776,7 +794,14 @@ export default function CashFlowApp() {
         .custom-scrollbar::-webkit-scrollbar { width: 6px; } 
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; } 
         .animate-slide-up { animation: slideUp 0.3s ease-out forwards; } 
+        .animate-slide-down { animation: slideDown 0.3s ease-in forwards; } 
+        .animate-zoom-in { animation: zoomIn 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; transform-origin: center center; }
+        .animate-fade-in { animation: fadeIn 0.2s ease-out forwards; }
+
         @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes slideDown { from { transform: translateY(0); opacity: 1; } to { transform: translateY(100%); opacity: 0; } }
+        @keyframes zoomIn { from { transform: scale(0.85) translateY(20px); opacity: 0; } to { transform: scale(1) translateY(0); opacity: 1; } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
       `}} />
     </div>
   );
