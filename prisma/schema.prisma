@@ -1,0 +1,26 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Transaction {
+  id          String   @id @default(uuid())
+  date        DateTime
+  description String
+  amount      Float // Positivo para Entrada, Negativo para Saída
+  isForecast  Boolean  @default(false) // Define se é uma previsão/orçamento ou gasto real
+  category    String // Ex: 'Almoço', 'Combustível', 'Salário', 'Diário'
+  createdAt   DateTime @default(now())
+}
+
+model Budget {
+  id        String   @id @default(uuid())
+  name      String
+  amount    Float
+  divideBy  Int      @default(30)
+  createdAt DateTime @default(now())
+}
