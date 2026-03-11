@@ -446,9 +446,14 @@ export default function CashFlowApp() {
     setIsBudgetModalOpen(true);
   };
 
+  const [deletingTxId, setDeletingTxId] = useState<string | null>(null);
+
   const deleteTransaction = async (id: string) => {
+    setDeletingTxId(id);
+    await new Promise(r => setTimeout(r, 400));
     await fetch(`/api/transactions/${id}`, { method: "DELETE" });
     await fetchTransacoes();
+    setDeletingTxId(null);
   };
 
   if (loading) return <div className="min-h-screen bg-gray-950 flex items-center justify-center text-white">Carregando Fluxo de Caixa...</div>
@@ -708,7 +713,7 @@ export default function CashFlowApp() {
                         if (tx.type === 'gasto_diario') txColor = 'text-amber-400';
 
                         return (
-                          <div key={tx.id} className="flex justify-between items-center bg-gray-800 p-3 rounded-lg border border-gray-700">
+                          <div key={tx.id} className={`flex justify-between items-center bg-gray-800 p-3 rounded-lg border border-gray-700 transition-all duration-300 ${deletingTxId === tx.id ? 'opacity-0 scale-95 -translate-x-4' : 'opacity-100'}`}>
                             <div className="overflow-hidden">
                               <p className="text-sm font-medium text-gray-200 truncate">{tx.description}</p>
                               <p className="text-xs text-gray-500 capitalize">{tx.type}</p>
@@ -717,7 +722,15 @@ export default function CashFlowApp() {
                               <span className={`text-sm font-bold tabular-nums ${txColor}`}>
                                 {formatCurrency(Math.abs(tx.amount))}
                               </span>
-                              <button onClick={() => deleteTransaction(tx.id)} className="text-gray-400 hover:text-red-500 p-1 bg-gray-900 rounded-md transition-colors"><Trash2 size={14} /></button>
+                              <button
+                                onClick={() => deleteTransaction(tx.id)}
+                                disabled={deletingTxId !== null}
+                                className={`p-1 rounded-md transition-colors ${deletingTxId === tx.id ? 'text-red-400 animate-spin' : 'text-gray-400 hover:text-red-500 bg-gray-900'} ${deletingTxId !== null && deletingTxId !== tx.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              >
+                                {deletingTxId === tx.id
+                                  ? <div className="w-3.5 h-3.5 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                                  : <Trash2 size={14} />}
+                              </button>
                             </div>
                           </div>
                         )
