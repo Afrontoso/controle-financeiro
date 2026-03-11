@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import crypto from "crypto";
 
 export async function GET() {
     try {
@@ -24,16 +25,6 @@ export async function POST(request: Request) {
         const { date, description, amount, isForecast, category, type, repeatCount, repeatFrequency, isIndeterminate } = data;
         const baseDate = new Date(date);
 
-        // Setup base transaction
-        const transactionsToCreate = [{
-            date: baseDate,
-            description: description,
-            amount: Number(amount),
-            type: type || 'saida',
-            isForecast: Boolean(isForecast),
-            category: category,
-        }];
-
         // Handle repetition
         let finalRepeatCount = repeatCount ? Number(repeatCount) : 0;
 
@@ -43,6 +34,20 @@ export async function POST(request: Request) {
             if (repeatFrequency === 'semanal') finalRepeatCount = 260; // 5 anos p/ aliviar sqlite
             if (repeatFrequency === 'diario') finalRepeatCount = 1460; // 4 anos p/ aliviar sqlite
         }
+
+        // Se vai repetir (tem mais de 1 parcela), gera um ID de grupo único
+        const groupId = finalRepeatCount > 1 ? crypto.randomUUID() : undefined;
+
+        // Setup base transaction
+        const transactionsToCreate = [{
+            date: baseDate,
+            description: description,
+            amount: Number(amount),
+            type: type || 'saida',
+            isForecast: Boolean(isForecast),
+            category: category,
+            groupId: groupId
+        }];
 
         if (finalRepeatCount > 1 && repeatFrequency) {
             for (let i = 1; i < finalRepeatCount; i++) {
@@ -63,6 +68,7 @@ export async function POST(request: Request) {
                     type: type || 'saida',
                     isForecast: Boolean(isForecast),
                     category: category,
+                    groupId: groupId
                 });
             }
         }

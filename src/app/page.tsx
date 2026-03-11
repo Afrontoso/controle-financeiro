@@ -11,6 +11,7 @@ interface Transaction {
   amount: number;
   category?: string;
   type?: string;
+  groupId?: string;
 }
 
 interface Budget {
@@ -91,6 +92,7 @@ export default function CashFlowApp() {
         amount: Math.abs(t.amount), // Amount absoluto pra o protótipo
         description: t.description,
         category: t.category,
+        groupId: t.groupId,
         originalAmount: t.amount // Positivo entrada neg saida
       }));
       setTransactions(formatTxs);
@@ -120,8 +122,13 @@ export default function CashFlowApp() {
     repeatEnabled: false,
     repeatFrequency: 'mensal', // diario, semanal, mensal
     repeatCount: '2', // minimo para repetir é 2x (a original + 1x a repetição)
-    isIndeterminate: false
+    isIndeterminate: false,
+    id: undefined as string | undefined, // Para saber se é edição
+    groupId: undefined as string | undefined // Para saber se tem lote
   });
+
+  const [deleteConfirmData, setDeleteConfirmData] = useState<{ id: string, groupId?: string, show: boolean }>({ id: '', show: false });
+  const [editConfirmData, setEditConfirmData] = useState<{ show: boolean }>({ show: false });
 
   const [budgetFormData, setBudgetFormData] = useState({
     id: null as string | null,
@@ -297,7 +304,7 @@ export default function CashFlowApp() {
     const totalGastos = saidas + cartao + gastoDiario;
     const performance = entradas - totalGastos - investimentos;
     const economiasPercent = entradas > 0 ? (investimentos / entradas) * 100 : 0;
-    const diarioMedio = daysInMonth > 0 ? totalGastos / daysInMonth : 0;
+    const diarioMedio = daysInMonth > 0 ? gastoDiario / daysInMonth : 0;
 
     // Dados do orçamento
     const orcamentoMensal = budgets.reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
@@ -363,9 +370,15 @@ export default function CashFlowApp() {
   const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
 
   // --- HANDLERS DE FORMULÁRIO API ---
-  const handleAddTransaction = async (e: React.FormEvent) => {
+  const handleAddOrEditTransaction = async (e: React.FormEvent, applyToAll: boolean = false) => {
     e.preventDefault();
     if (!txFormData.amount || !txFormData.description) return;
+
+    // Se estiver editando e for a primeira tela de confirmação (antes do modal 'todas vs só essa')
+    if (txFormData.id && txFormData.groupId && !editConfirmData.show) {
+      setEditConfirmData({ show: true });
+      return;
+    }
 
     // Trava Tipo conforme o Filtro da View, pra evitar erros, exceto se eu estiver no "Diário" (geral)
     let realType = txFormData.type;
@@ -381,30 +394,38 @@ export default function CashFlowApp() {
     // Converte de novo pra API do jeito antigo (+ ou -) para manter consistencia no banco
     const apiAmount = isPositiveForce ? realAmount : -Math.abs(realAmount);
 
-    const txBody = {
+    const txBody: any = {
       description: txFormData.description,
       amount: apiAmount,
       date: new Date(`${txFormData.date}T12:00:00`).toISOString(),
       type: realType,
       category: realType,
-
-      repeatCount: txFormData.repeatEnabled ? parseInt(txFormData.repeatCount) : undefined,
-      repeatFrequency: txFormData.repeatEnabled ? txFormData.repeatFrequency : undefined,
-      isIndeterminate: txFormData.repeatEnabled ? txFormData.isIndeterminate : false,
     }
 
-    const res = await fetch("/api/transactions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(txBody)
-    });
+    if (!txFormData.id) {
+      txBody.repeatCount = txFormData.repeatEnabled ? parseInt(txFormData.repeatCount) : undefined;
+      txBody.repeatFrequency = txFormData.repeatEnabled ? txFormData.repeatFrequency : undefined;
+      txBody.isIndeterminate = txFormData.repeatEnabled ? txFormData.isIndeterminate : false;
 
-    if (res.ok) {
-      await fetchTransacoes();
+      await fetch("/api/transactions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(txBody)
+      });
+    } else {
+      txBody.updateAll = applyToAll;
+      await fetch(`/api/transactions/${txFormData.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(txBody)
+      });
     }
+
+    await fetchTransacoes();
 
     setIsTxModalOpen(false);
-    setTxFormData({ ...txFormData, amount: '', description: '', repeatEnabled: false, isIndeterminate: false });
+    setEditConfirmData({ show: false });
+    setTxFormData(prev => ({ ...prev, amount: '', description: '', repeatEnabled: false, repeatFrequency: 'mensal', repeatCount: '2', isIndeterminate: false, id: undefined, groupId: undefined }));
   };
 
   const handleSaveBudget = async (e: React.FormEvent) => {
@@ -450,12 +471,32 @@ export default function CashFlowApp() {
 
   const [deletingTxId, setDeletingTxId] = useState<string | null>(null);
 
-  const deleteTransaction = async (id: string) => {
+  const deleteTransaction = async (id: string, deleteAll: boolean = false) => {
     setDeletingTxId(id);
     await new Promise(r => setTimeout(r, 400));
-    await fetch(`/api/transactions/${id}`, { method: "DELETE" });
+    await fetch(`/api/transactions/${id}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deleteAll })
+    });
     await fetchTransacoes();
     setDeletingTxId(null);
+    setDeleteConfirmData({ id: '', show: false });
+  };
+
+  const openEditTx = (tx: Transaction) => {
+    setTxFormData({
+      id: tx.id,
+      groupId: tx.groupId,
+      date: tx.date,
+      type: tx.type || 'saida',
+      amount: tx.amount.toString(),
+      description: tx.description,
+      repeatEnabled: false,
+      repeatFrequency: 'mensal',
+      repeatCount: '2',
+      isIndeterminate: false
+    });
   };
 
   if (loading) return <div className="min-h-screen bg-gray-950 flex items-center justify-center text-white">Carregando Fluxo de Caixa...</div>
@@ -692,59 +733,82 @@ export default function CashFlowApp() {
             <div className="bg-gray-900 w-full max-w-sm max-h-[90vh] flex flex-col rounded-2xl sm:rounded-xl shadow-2xl border border-gray-800 overflow-hidden animate-zoom-in">
               <div className="flex justify-between items-center p-4 border-b border-gray-800 shrink-0">
                 <h2 className="text-lg font-semibold text-white">Transações do Dia</h2>
-                <button onClick={() => setIsTxModalOpen(false)} className="text-gray-400"><X size={20} /></button>
+                <button onClick={() => {
+                  setIsTxModalOpen(false);
+                  setDeleteConfirmData({ id: '', show: false });
+                  setEditConfirmData({ show: false });
+                }} className="text-gray-400"><X size={20} /></button>
               </div>
 
               {/* Lista do que já tem lá */}
-              <div className="p-4 border-b border-gray-800 bg-gray-950/50 flex-1 overflow-y-auto custom-scrollbar">
-                <label className="text-xs text-gray-500 uppercase tracking-wider mb-3 block">Registros Existentes</label>
+              {!editConfirmData.show && !deleteConfirmData.show && (
+                <div className="p-4 border-b border-gray-800 bg-gray-950/50 flex-1 overflow-y-auto custom-scrollbar">
+                  <label className="text-xs text-gray-500 uppercase tracking-wider mb-3 block">Registros Existentes</label>
 
-                {(() => {
-                  const currentDayTxs = transactions.filter(t => t.date === txFormData.date);
+                  {(() => {
+                    const currentDayTxs = transactions.filter(t => t.date === txFormData.date);
 
-                  if (currentDayTxs.length === 0) {
-                    return <p className="text-sm text-gray-500 italic text-center py-4 border border-dashed border-gray-800 rounded-lg">Nenhum registro para este dia.</p>;
-                  }
+                    if (currentDayTxs.length === 0) {
+                      return <p className="text-sm text-gray-500 italic text-center py-4 border border-dashed border-gray-800 rounded-lg">Nenhum registro para este dia.</p>;
+                    }
 
-                  return (
-                    <div className="space-y-2">
-                      {currentDayTxs.map(tx => {
-                        let txColor = tx.type === 'entrada' ? 'text-green-400' : 'text-red-400';
-                        if (tx.type === 'cartao') txColor = 'text-purple-400';
-                        if (tx.type === 'investimento') txColor = 'text-emerald-300';
-                        if (tx.type === 'gasto_diario') txColor = 'text-amber-400';
+                    return (
+                      <div className="space-y-2">
+                        {currentDayTxs.map(tx => {
+                          let txColor = tx.type === 'entrada' ? 'text-green-400' : 'text-red-400';
+                          if (tx.type === 'cartao') txColor = 'text-purple-400';
+                          if (tx.type === 'investimento') txColor = 'text-emerald-300';
+                          if (tx.type === 'gasto_diario') txColor = 'text-amber-400';
 
-                        return (
-                          <div key={tx.id} className={`flex justify-between items-center bg-gray-800 p-3 rounded-lg border border-gray-700 transition-all duration-300 ${deletingTxId === tx.id ? 'opacity-0 scale-95 -translate-x-4' : 'opacity-100'}`}>
-                            <div className="overflow-hidden">
-                              <p className="text-sm font-medium text-gray-200 truncate">{tx.description}</p>
-                              <p className="text-xs text-gray-500 capitalize">{tx.type}</p>
+                          return (
+                            <div key={tx.id} className={`flex justify-between items-center bg-gray-800 p-3 rounded-lg border border-gray-700 transition-all duration-300 ${deletingTxId === tx.id ? 'opacity-0 scale-95 -translate-x-4' : 'opacity-100'}`}>
+                              <div className="overflow-hidden">
+                                <p className="text-sm font-medium text-gray-200 truncate">{tx.description}</p>
+                                <p className="text-xs text-gray-500 capitalize">{tx.type}</p>
+                              </div>
+                              <div className="flex items-center gap-3 shrink-0 ml-2">
+                                <span className={`text-sm font-bold tabular-nums ${txColor}`}>
+                                  {formatCurrency(Math.abs(tx.amount))}
+                                </span>
+                                <button
+                                  onClick={() => openEditTx(tx)}
+                                  className={`p-1 rounded-md transition-colors text-gray-400 hover:text-blue-400 bg-gray-900`}
+                                >
+                                  <Edit2 size={14} />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setDeleteConfirmData({ id: tx.id, groupId: tx.groupId || undefined, show: true });
+                                  }}
+                                  disabled={deletingTxId !== null}
+                                  className={`p-1 rounded-md transition-colors ${deletingTxId === tx.id ? 'text-red-400 animate-spin' : 'text-gray-400 hover:text-red-500 bg-gray-900'} ${deletingTxId !== null && deletingTxId !== tx.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                >
+                                  {deletingTxId === tx.id
+                                    ? <div className="w-3.5 h-3.5 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                                    : <Trash2 size={14} />}
+                                </button>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-3 shrink-0 ml-2">
-                              <span className={`text-sm font-bold tabular-nums ${txColor}`}>
-                                {formatCurrency(Math.abs(tx.amount))}
-                              </span>
-                              <button
-                                onClick={() => deleteTransaction(tx.id)}
-                                disabled={deletingTxId !== null}
-                                className={`p-1 rounded-md transition-colors ${deletingTxId === tx.id ? 'text-red-400 animate-spin' : 'text-gray-400 hover:text-red-500 bg-gray-900'} ${deletingTxId !== null && deletingTxId !== tx.id ? 'opacity-50 cursor-not-allowed' : ''}`}
-                              >
-                                {deletingTxId === tx.id
-                                  ? <div className="w-3.5 h-3.5 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
-                                  : <Trash2 size={14} />}
-                              </button>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  );
-                })()}
-              </div>
+                          )
+                        })}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
 
-              {/* Formulário de Adição de Coisas Novas */}
-              <form onSubmit={handleAddTransaction} className="p-4 space-y-4 shrink-0 bg-gray-900">
-                <label className="text-xs text-blue-400 uppercase tracking-wider block font-semibold mb-1">Novo Registro</label>
+              {/* Formulário de Adição de Coisas Novas / Edição */}
+              <form onSubmit={handleAddOrEditTransaction} className={`p-4 space-y-4 shrink-0 bg-gray-900 ${editConfirmData.show || deleteConfirmData.show ? 'hidden' : 'block'}`}>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-xs text-blue-400 uppercase tracking-wider block font-semibold">
+                    {txFormData.id ? 'Editar Registro' : 'Novo Registro'}
+                  </label>
+                  {txFormData.id && (
+                    <button type="button" onClick={() => setTxFormData(prev => ({ ...prev, amount: '', description: '', repeatEnabled: false, repeatFrequency: 'mensal', repeatCount: '2', isIndeterminate: false, id: undefined, groupId: undefined }))} className="text-xs text-gray-400 hover:text-white flex items-center gap-1">
+                      <X size={12} /> Cancelar Edição
+                    </button>
+                  )}
+                </div>
 
                 {/* Oculta os Radiais de Entrada/Saída/Etc se o usuário estiver numa aba travada pra evitar enganos */}
                 {filter === 'diario' && (
@@ -766,45 +830,97 @@ export default function CashFlowApp() {
                   <input type="text" placeholder="Descrição" value={txFormData.description} onChange={(e) => setTxFormData({ ...txFormData, description: e.target.value })} className="flex-1 bg-gray-800 border border-gray-700 text-white rounded-lg p-3 outline-none focus:ring-2 focus:ring-blue-500" required />
                 </div>
 
-                {/* Bloco de Interatividade Expansível para Repetição */}
-                <div className="border border-gray-800 rounded-lg bg-gray-950 p-3 flex flex-col gap-3 transition-all duration-300">
-                  <label className="flex items-center gap-3 text-sm text-gray-300 cursor-pointer w-fit select-none">
-                    <div className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${txFormData.repeatEnabled ? 'bg-blue-600' : 'bg-gray-700'}`}>
-                      <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ease-in-out ${txFormData.repeatEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
-                    </div>
-                    <input type="checkbox" checked={txFormData.repeatEnabled} onChange={(e) => setTxFormData({ ...txFormData, repeatEnabled: e.target.checked })} className="sr-only" />
-                    Repetir Lançamento?
-                  </label>
-
-                  {txFormData.repeatEnabled && (
-                    <div className="flex flex-col gap-2 animate-slide-up origin-top pt-2 mt-[-4px] border-t border-gray-800">
-                      <div className="flex gap-2 items-center">
-                        <select value={txFormData.repeatFrequency} onChange={(e) => setTxFormData({ ...txFormData, repeatFrequency: e.target.value })} className="bg-gray-800 border border-gray-700 text-white rounded-md p-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 w-1/2">
-                          <option value="mensal">Todo Mês</option>
-                          <option value="semanal">Toda Semana</option>
-                          <option value="diario">Todo Dia</option>
-                        </select>
-                        <span className="text-gray-500 text-xs text-center">por</span>
-                        <div className="relative w-1/2 flex items-center">
-                          <input type="number" min="2" max="360" value={txFormData.repeatCount} onChange={(e) => setTxFormData({ ...txFormData, repeatCount: e.target.value })} disabled={txFormData.isIndeterminate} className={`w-full bg-gray-800 border border-gray-700 text-white rounded-md p-2 pr-12 text-sm outline-none focus:ring-2 focus:ring-blue-500 ${txFormData.isIndeterminate ? 'opacity-50 cursor-not-allowed' : ''}`} required={txFormData.repeatEnabled && !txFormData.isIndeterminate} />
-                          <span className="absolute right-3 text-gray-500 text-xs pointer-events-none">Vezes</span>
-                        </div>
+                {!txFormData.id && (
+                  <div className="border border-gray-800 rounded-lg bg-gray-950 p-3 flex flex-col gap-3 transition-all duration-300">
+                    <label className="flex items-center gap-3 text-sm text-gray-300 cursor-pointer w-fit select-none">
+                      <div className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${txFormData.repeatEnabled ? 'bg-blue-600' : 'bg-gray-700'}`}>
+                        <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ease-in-out ${txFormData.repeatEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
                       </div>
-                      <label className="flex items-center gap-3 text-sm text-gray-400 cursor-pointer w-fit select-none mt-1">
-                        <div className={`relative inline-flex h-4 w-7 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${txFormData.isIndeterminate ? 'bg-blue-600' : 'bg-gray-700'}`}>
-                          <span className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform duration-200 ease-in-out ${txFormData.isIndeterminate ? 'translate-x-3' : 'translate-x-0'}`} />
+                      <input type="checkbox" checked={txFormData.repeatEnabled} onChange={(e) => setTxFormData({ ...txFormData, repeatEnabled: e.target.checked })} className="sr-only" />
+                      Repetir Lançamento?
+                    </label>
+
+                    {txFormData.repeatEnabled && (
+                      <div className="flex flex-col gap-2 animate-slide-up origin-top pt-2 mt-[-4px] border-t border-gray-800">
+                        <div className="flex gap-2 items-center">
+                          <select value={txFormData.repeatFrequency} onChange={(e) => setTxFormData({ ...txFormData, repeatFrequency: e.target.value })} className="bg-gray-800 border border-gray-700 text-white rounded-md p-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 w-1/2">
+                            <option value="mensal">Todo Mês</option>
+                            <option value="semanal">Toda Semana</option>
+                            <option value="diario">Todo Dia</option>
+                          </select>
+                          <span className="text-gray-500 text-xs text-center">por</span>
+                          <div className="relative w-1/2 flex items-center">
+                            <input type="number" min="2" max="360" value={txFormData.repeatCount} onChange={(e) => setTxFormData({ ...txFormData, repeatCount: e.target.value })} disabled={txFormData.isIndeterminate} className={`w-full bg-gray-800 border border-gray-700 text-white rounded-md p-2 pr-12 text-sm outline-none focus:ring-2 focus:ring-blue-500 ${txFormData.isIndeterminate ? 'opacity-50 cursor-not-allowed' : ''}`} required={txFormData.repeatEnabled && !txFormData.isIndeterminate} />
+                            <span className="absolute right-3 text-gray-500 text-xs pointer-events-none">Vezes</span>
+                          </div>
                         </div>
-                        <input type="checkbox" checked={txFormData.isIndeterminate} onChange={(e) => setTxFormData({ ...txFormData, isIndeterminate: e.target.checked })} className="sr-only" />
-                        Prazo Indeterminado
-                      </label>
-                    </div>
-                  )}
-                </div>
+                        <label className="flex items-center gap-3 text-sm text-gray-400 cursor-pointer w-fit select-none mt-1">
+                          <div className={`relative inline-flex h-4 w-7 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${txFormData.isIndeterminate ? 'bg-blue-600' : 'bg-gray-700'}`}>
+                            <span className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform duration-200 ease-in-out ${txFormData.isIndeterminate ? 'translate-x-3' : 'translate-x-0'}`} />
+                          </div>
+                          <input type="checkbox" checked={txFormData.isIndeterminate} onChange={(e) => setTxFormData({ ...txFormData, isIndeterminate: e.target.checked })} className="sr-only" />
+                          Prazo Indeterminado
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 transition-colors text-white font-semibold rounded-lg p-3 flex justify-center items-center gap-2 mt-2">
-                  <Plus size={20} /> Registrar
+                  <Plus size={20} /> {txFormData.id ? 'Salvar Edição' : 'Registrar'}
                 </button>
               </form>
+
+              {/* Modais de Confirmação Internos (Lote e Único) */}
+              {deleteConfirmData.show && (
+                <div className="p-6 bg-gray-900 flex flex-col items-center text-center animate-slide-up flex-1">
+                  <Trash2 size={32} className="text-red-500 mb-2" />
+                  <h3 className="text-white font-medium mb-1">Apagar Transação</h3>
+
+                  {deleteConfirmData.groupId ? (
+                    <>
+                      <p className="text-sm text-gray-400 mb-6">Esta transação faz parte de uma repetição. O que você deseja excluir?</p>
+                      <div className="w-full flex flex-col gap-2">
+                        <button onClick={() => deleteTransaction(deleteConfirmData.id, true)} className="w-full bg-red-900/40 text-red-500 hover:bg-red-900/60 border border-red-500/50 p-3 rounded-lg font-medium transition-colors">
+                          Excluir TODAS as parcelas
+                        </button>
+                        <button onClick={() => deleteTransaction(deleteConfirmData.id, false)} className="w-full bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700 p-3 rounded-lg font-medium transition-colors">
+                          Excluir APENAS esta parcela
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm text-gray-400 mb-6">Tem certeza que deseja apagar permanentemente esta transação?</p>
+                      <button onClick={() => deleteTransaction(deleteConfirmData.id, false)} className="w-full bg-red-900/40 text-red-500 hover:bg-red-900/60 border border-red-500/50 p-3 rounded-lg font-medium transition-colors">
+                        Sim, excluir transação
+                      </button>
+                    </>
+                  )}
+
+                  <button onClick={() => setDeleteConfirmData({ id: '', show: false })} className="mt-4 text-sm text-gray-500 hover:text-white">Cancelar</button>
+                </div>
+              )}
+
+              {editConfirmData.show && (
+                <div className="p-6 bg-gray-900 flex flex-col items-center text-center animate-slide-up flex-1">
+                  <Edit2 size={32} className="text-blue-500 mb-2" />
+                  <h3 className="text-white font-medium mb-1">Salvar Edição Recorrente</h3>
+                  <p className="text-sm text-gray-400 mb-6">Esta transação faz parte de uma repetição. Como deseja salvar as alterações?</p>
+
+                  <div className="w-full flex flex-col gap-2">
+                    <button onClick={(e) => handleAddOrEditTransaction(e, true)} className="w-full bg-blue-900/40 text-blue-400 hover:bg-blue-900/60 border border-blue-500/50 p-3 rounded-lg font-medium transition-colors">
+                      Alterar TODAS as parcelas
+                    </button>
+                    <button onClick={(e) => handleAddOrEditTransaction(e, false)} className="w-full bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700 p-3 rounded-lg font-medium transition-colors">
+                      Alterar APENAS esta parcela
+                    </button>
+                  </div>
+
+                  <button onClick={() => setEditConfirmData({ show: false })} className="mt-4 text-sm text-gray-500 hover:text-white">Voltar ao Formulário</button>
+                </div>
+              )}
+
             </div>
           </div>
         )}
@@ -965,7 +1081,7 @@ export default function CashFlowApp() {
                   {formatCurrency(monthlyTotals.sobraOrcamentoDaily)}
                 </span>
                 <p className="text-[10px] text-gray-500 mt-2">
-                  {monthlyTotals.sobraOrcamentoDaily >= 0 
+                  {monthlyTotals.sobraOrcamentoDaily >= 0
                     ? 'Valor que ainda pode gastar dentro do orçamento'
                     : 'Você ultrapassou o orçamento do mês!'}
                 </p>
@@ -999,11 +1115,10 @@ export default function CashFlowApp() {
                     <span className="text-lg font-extrabold text-blue-400 tabular-nums">{formatCurrency(monthlyTotals.diarioPrevisto)}</span>
                   </div>
                 </div>
-                <p className={`text-[10px] mt-3 font-medium text-center ${
-                  monthlyTotals.diarioMedioOnly <= monthlyTotals.diarioPrevisto ? 'text-green-400' : 'text-red-400'
-                }`}>
-                  {monthlyTotals.diarioMedioOnly <= monthlyTotals.diarioPrevisto 
-                    ? `✅ Dentro do previsto! Economizando ${formatCurrency(monthlyTotals.diarioPrevisto - monthlyTotals.diarioMedioOnly)}/dia` 
+                <p className={`text-[10px] mt-3 font-medium text-center ${monthlyTotals.diarioMedioOnly <= monthlyTotals.diarioPrevisto ? 'text-green-400' : 'text-red-400'
+                  }`}>
+                  {monthlyTotals.diarioMedioOnly <= monthlyTotals.diarioPrevisto
+                    ? `✅ Dentro do previsto! Economizando ${formatCurrency(monthlyTotals.diarioPrevisto - monthlyTotals.diarioMedioOnly)}/dia`
                     : `⚠️ Acima do previsto em ${formatCurrency(monthlyTotals.diarioMedioOnly - monthlyTotals.diarioPrevisto)}/dia`}
                 </p>
               </div>
