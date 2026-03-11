@@ -390,6 +390,7 @@ export default function CashFlowApp() {
 
       repeatCount: txFormData.repeatEnabled ? parseInt(txFormData.repeatCount) : undefined,
       repeatFrequency: txFormData.repeatEnabled ? txFormData.repeatFrequency : undefined,
+      isIndeterminate: txFormData.repeatEnabled ? txFormData.isIndeterminate : false,
     }
 
     const res = await fetch("/api/transactions", {
@@ -767,8 +768,11 @@ export default function CashFlowApp() {
 
                 {/* Bloco de Interatividade Expansível para Repetição */}
                 <div className="border border-gray-800 rounded-lg bg-gray-950 p-3 flex flex-col gap-3 transition-all duration-300">
-                  <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer w-fit select-none">
-                    <input type="checkbox" checked={txFormData.repeatEnabled} onChange={(e) => setTxFormData({ ...txFormData, repeatEnabled: e.target.checked })} className="w-4 h-4 rounded bg-gray-900 border-gray-700 text-blue-600 focus:ring-blue-500 focus:ring-offset-gray-950" />
+                  <label className="flex items-center gap-3 text-sm text-gray-300 cursor-pointer w-fit select-none">
+                    <div className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${txFormData.repeatEnabled ? 'bg-blue-600' : 'bg-gray-700'}`}>
+                      <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ease-in-out ${txFormData.repeatEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
+                    </div>
+                    <input type="checkbox" checked={txFormData.repeatEnabled} onChange={(e) => setTxFormData({ ...txFormData, repeatEnabled: e.target.checked })} className="sr-only" />
                     Repetir Lançamento?
                   </label>
 
@@ -786,8 +790,11 @@ export default function CashFlowApp() {
                           <span className="absolute right-3 text-gray-500 text-xs pointer-events-none">Vezes</span>
                         </div>
                       </div>
-                      <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer w-fit select-none mt-1">
-                        <input type="checkbox" checked={txFormData.isIndeterminate} onChange={(e) => setTxFormData({ ...txFormData, isIndeterminate: e.target.checked })} className="w-3.5 h-3.5 rounded bg-gray-900 border-gray-700 text-blue-600 focus:ring-blue-500 focus:ring-offset-gray-950" />
+                      <label className="flex items-center gap-3 text-sm text-gray-400 cursor-pointer w-fit select-none mt-1">
+                        <div className={`relative inline-flex h-4 w-7 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${txFormData.isIndeterminate ? 'bg-blue-600' : 'bg-gray-700'}`}>
+                          <span className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform duration-200 ease-in-out ${txFormData.isIndeterminate ? 'translate-x-3' : 'translate-x-0'}`} />
+                        </div>
+                        <input type="checkbox" checked={txFormData.isIndeterminate} onChange={(e) => setTxFormData({ ...txFormData, isIndeterminate: e.target.checked })} className="sr-only" />
                         Prazo Indeterminado
                       </label>
                     </div>
