@@ -87,7 +87,7 @@ export default function CashFlowApp() {
         id: t.id,
         // Remove a parte de hora para bater string com o loop manual, converte DB datetime em string pura YYYY-MM-DD local
         date: new Date(new Date(t.date).getTime() + new Date(t.date).getTimezoneOffset() * 60000).toISOString().split('T')[0],
-        type: t.category && ['entrada', 'saida', 'cartao', 'investimento', 'gasto_diario'].includes(t.category) ? t.category : (t.amount > 0 ? 'entrada' : 'saida'),
+        type: (t.type || t.category) && ['entrada', 'saida', 'cartao', 'investimento', 'gasto_diario'].includes(t.type || t.category) ? (t.type || t.category) : (t.amount > 0 ? 'entrada' : 'saida'),
         amount: Math.abs(t.amount), // Amount absoluto pra o protótipo
         description: t.description,
         category: t.category,
@@ -384,8 +384,9 @@ export default function CashFlowApp() {
     const txBody = {
       description: txFormData.description,
       amount: apiAmount,
-      date: new Date(`${txFormData.date}T12:00:00`).toISOString(), // Middle of day prevent tz issues
-      category: realType, // Salva na DB a categoria customizada
+      date: new Date(`${txFormData.date}T12:00:00`).toISOString(),
+      type: realType,
+      category: realType,
 
       repeatCount: txFormData.repeatEnabled ? parseInt(txFormData.repeatCount) : undefined,
       repeatFrequency: txFormData.repeatEnabled ? txFormData.repeatFrequency : undefined,

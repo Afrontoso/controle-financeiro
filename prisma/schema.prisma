@@ -1,19 +1,20 @@
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider = "postgresql"
 }
 
 model Transaction {
   id          String   @id @default(uuid())
   date        DateTime
   description String
-  amount      Float // Positivo para Entrada, Negativo para Saída
-  isForecast  Boolean  @default(false) // Define se é uma previsão/orçamento ou gasto real
-  category    String // Ex: 'Almoço', 'Combustível', 'Salário', 'Diário'
+  amount      Float
+  type        String   @default("saida")
+  isForecast  Boolean  @default(false)
+  category    String
   createdAt   DateTime @default(now())
 }
 

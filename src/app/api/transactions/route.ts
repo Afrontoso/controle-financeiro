@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     try {
         const data = await request.json();
 
-        const { date, description, amount, isForecast, category, repeatCount, repeatFrequency, isIndeterminate } = data;
+        const { date, description, amount, isForecast, category, type, repeatCount, repeatFrequency, isIndeterminate } = data;
         const baseDate = new Date(date);
 
         // Setup base transaction
@@ -29,6 +29,7 @@ export async function POST(request: Request) {
             date: baseDate,
             description: description,
             amount: Number(amount),
+            type: type || 'saida',
             isForecast: Boolean(isForecast),
             category: category,
         }];
@@ -59,6 +60,7 @@ export async function POST(request: Request) {
                     date: nextDate,
                     description: isIndeterminate ? description : `${description} (${i + 1}/${finalRepeatCount})`,
                     amount: Number(amount),
+                    type: type || 'saida',
                     isForecast: Boolean(isForecast),
                     category: category,
                 });
@@ -71,6 +73,7 @@ export async function POST(request: Request) {
 
         return NextResponse.json({ count: insertedCount.count }, { status: 201 });
     } catch (error) {
+        console.error("Transaction POST error:", error);
         return NextResponse.json(
             { error: "Erro ao criar a transação" },
             { status: 500 }
