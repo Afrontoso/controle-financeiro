@@ -58,6 +58,13 @@ export default function CashFlowApp() {
   const [isDailyDashOpen, setIsDailyDashOpen] = useState(false);
   const [isDailyDashClosing, setIsDailyDashClosing] = useState(false);
 
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
   const [isCostOfLivingOpen, setIsCostOfLivingOpen] = useState(false);
   const [isCostOfLivingClosing, setIsCostOfLivingClosing] = useState(false);
 
@@ -439,7 +446,11 @@ export default function CashFlowApp() {
 
     setIsTxModalOpen(false);
     setEditConfirmData({ show: false });
+
+    const isEditing = !!txFormData.id;
     setTxFormData(prev => ({ ...prev, amount: '', description: '', repeatEnabled: false, repeatFrequency: 'mensal', repeatCount: '2', isIndeterminate: false, id: undefined, groupId: undefined }));
+
+    showToast(isEditing ? 'Transação atualizada com sucesso!' : 'Transação registrada com sucesso!');
   };
 
   const handleSaveBudget = async (e: React.FormEvent) => {
@@ -1017,17 +1028,17 @@ export default function CashFlowApp() {
               </button>
 
               {/* Card 3: Custo de Vida */}
-              <button 
+              <button
                 onClick={() => setIsCostOfLivingOpen(true)}
                 className="w-full text-left bg-gray-800 border border-red-900/30 rounded-2xl p-5 shadow-lg relative overflow-hidden active:scale-[0.98] transition-transform cursor-pointer group hover:border-red-700/50"
               >
                 <div className="absolute top-0 right-0 w-24 h-24 bg-red-500/10 rounded-full blur-2xl -mr-8 -mt-8"></div>
-                
+
                 <div className="flex justify-between items-center mb-2">
-                    <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider">Custo de Vida</h3>
-                    <ChevronRight size={16} className="text-gray-600 group-hover:text-red-400 transition-colors" />
+                  <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider">Custo de Vida</h3>
+                  <ChevronRight size={16} className="text-gray-600 group-hover:text-red-400 transition-colors" />
                 </div>
-                
+
                 <span className="block text-2xl font-extrabold text-red-400 tracking-tight tabular-nums">
                   {formatCurrency(monthlyTotals.totalGastos)}
                 </span>
@@ -1161,41 +1172,41 @@ export default function CashFlowApp() {
             </div>
 
             <div className="p-4 bg-gray-900 border-b border-gray-800 flex justify-between items-center shrink-0">
-                <span className="text-sm font-semibold text-gray-400">Total do Mês:</span>
-                <span className="text-xl font-extrabold text-red-400 tabular-nums tracking-tight">{formatCurrency(monthlyTotals.totalGastos)}</span>
+              <span className="text-sm font-semibold text-gray-400">Total do Mês:</span>
+              <span className="text-xl font-extrabold text-red-400 tabular-nums tracking-tight">{formatCurrency(monthlyTotals.totalGastos)}</span>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-gray-950 pb-24">
-                {monthlyTotals.allMonthGastosTxs.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center pt-20 text-gray-600">
-                        <Wallet size={48} className="mb-4 opacity-20" />
-                        <p className="text-sm">Sem gastos listados neste mês.</p>
-                    </div>
-                ) : (
-                    <div className="space-y-3">
-                        {monthlyTotals.allMonthGastosTxs.map(tx => {
-                            let txColor = 'text-red-400';
-                            if (tx.type === 'cartao') txColor = 'text-purple-400';
-                            if (tx.type === 'gasto_diario') txColor = 'text-amber-400';
+              {monthlyTotals.allMonthGastosTxs.length === 0 ? (
+                <div className="flex flex-col items-center justify-center pt-20 text-gray-600">
+                  <Wallet size={48} className="mb-4 opacity-20" />
+                  <p className="text-sm">Sem gastos listados neste mês.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {monthlyTotals.allMonthGastosTxs.map(tx => {
+                    let txColor = 'text-red-400';
+                    if (tx.type === 'cartao') txColor = 'text-purple-400';
+                    if (tx.type === 'gasto_diario') txColor = 'text-amber-400';
 
-                            return (
-                                <div key={tx.id} onClick={() => { closeCostOfLiving(); setTxFormData(prev => ({ ...prev, date: tx.date })); setIsTxModalOpen(true); }} className="flex justify-between items-center bg-gray-800/80 hover:bg-gray-800 p-4 rounded-xl border border-gray-700/50 hover:border-gray-600 transition-colors cursor-pointer group">
-                                    <div className="overflow-hidden flex flex-col gap-1">
-                                        <p className="text-sm font-medium text-gray-200 truncate group-hover:text-white transition-colors">{tx.description}</p>
-                                        <div className="flex items-center gap-2 text-xs text-gray-500">
-                                            <span className="bg-gray-900 px-2 py-0.5 rounded capitalize">{tx.type.replace('_', ' ')}</span>
-                                            <span>•</span>
-                                            <span>{tx.date.split('-').reverse().join('/')}</span>
-                                        </div>
-                                    </div>
-                                    <span className={`text-base font-bold tabular-nums ml-4 shrink-0 ${txColor}`}>
-                                        {formatCurrency(Math.abs(tx.amount))}
-                                    </span>
-                                </div>
-                            )
-                        })}
-                    </div>
-                )}
+                    return (
+                      <div key={tx.id} onClick={() => { closeCostOfLiving(); setTxFormData(prev => ({ ...prev, date: tx.date })); setIsTxModalOpen(true); }} className="flex justify-between items-center bg-gray-800/80 hover:bg-gray-800 p-4 rounded-xl border border-gray-700/50 hover:border-gray-600 transition-colors cursor-pointer group">
+                        <div className="overflow-hidden flex flex-col gap-1">
+                          <p className="text-sm font-medium text-gray-200 truncate group-hover:text-white transition-colors">{tx.description}</p>
+                          <div className="flex items-center gap-2 text-xs text-gray-500">
+                            <span className="bg-gray-900 px-2 py-0.5 rounded capitalize">{tx.type.replace('_', ' ')}</span>
+                            <span>•</span>
+                            <span>{tx.date.split('-').reverse().join('/')}</span>
+                          </div>
+                        </div>
+                        <span className={`text-base font-bold tabular-nums ml-4 shrink-0 ${txColor}`}>
+                          {formatCurrency(Math.abs(tx.amount))}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1296,6 +1307,16 @@ export default function CashFlowApp() {
           </div>
         )}
 
+        {/* TOAST NOTIFICATION */}
+        {toastMessage && (
+          <div className="absolute bottom-6 w-full px-4 flex justify-center z-[100] pointer-events-none">
+            <div className="w-fit min-w-[280px] max-w-[90%] bg-gray-800 text-white px-6 py-3 rounded-full shadow-2xl border border-gray-700/50 flex items-center justify-center gap-3 animate-toast opacity-95 pointer-events-auto">
+              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></div>
+              <span className="font-medium text-sm truncate">{toastMessage}</span>
+            </div>
+          </div>
+        )}
+
       </div>
       <style dangerouslySetInnerHTML={{
         __html: `
@@ -1305,9 +1326,11 @@ export default function CashFlowApp() {
         .animate-slide-down { animation: slideDown 0.3s ease-in forwards; } 
         .animate-zoom-in { animation: zoomIn 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; transform-origin: center center; }
         .animate-fade-in { animation: fadeIn 0.2s ease-out forwards; }
+        .animate-toast { animation: toastSlide 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
 
         @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @keyframes slideDown { from { transform: translateY(0); opacity: 1; } to { transform: translateY(100%); opacity: 0; } }
+        @keyframes toastSlide { from { transform: translateY(150%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @keyframes zoomIn { from { transform: scale(0.85) translateY(20px); opacity: 0; } to { transform: scale(1) translateY(0); opacity: 1; } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
       `}} />
