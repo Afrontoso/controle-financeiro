@@ -58,11 +58,22 @@ export default function CashFlowApp() {
   const [isDailyDashOpen, setIsDailyDashOpen] = useState(false);
   const [isDailyDashClosing, setIsDailyDashClosing] = useState(false);
 
+  const [isCostOfLivingOpen, setIsCostOfLivingOpen] = useState(false);
+  const [isCostOfLivingClosing, setIsCostOfLivingClosing] = useState(false);
+
   const closeDailyDash = () => {
     setIsDailyDashClosing(true);
     setTimeout(() => {
       setIsDailyDashOpen(false);
       setIsDailyDashClosing(false);
+    }, 300);
+  };
+
+  const closeCostOfLiving = () => {
+    setIsCostOfLivingClosing(true);
+    setTimeout(() => {
+      setIsCostOfLivingOpen(false);
+      setIsCostOfLivingClosing(false);
     }, 300);
   };
 
@@ -290,18 +301,20 @@ export default function CashFlowApp() {
     let investimentos = 0;
     let gastoDiario = 0;
 
+    let allMonthGastosTxs: any[] = [];
     transactions.forEach(t => {
       const [y, mStr] = t.date.split('-');
       if (Number(y) === targetYear && Number(mStr) - 1 === targetMonth) {
         if (t.type === 'entrada') entradas += t.amount;
-        if (t.type === 'saida') saidas += t.amount;
-        if (t.type === 'cartao') cartao += t.amount;
+        if (t.type === 'saida') { saidas += t.amount; allMonthGastosTxs.push(t); }
+        if (t.type === 'cartao') { cartao += t.amount; allMonthGastosTxs.push(t); }
         if (t.type === 'investimento') investimentos += t.amount;
-        if (t.type === 'gasto_diario') gastoDiario += t.amount;
+        if (t.type === 'gasto_diario') { gastoDiario += t.amount; allMonthGastosTxs.push(t); }
       }
     });
 
     const totalGastos = saidas + cartao + gastoDiario;
+    allMonthGastosTxs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     const performance = entradas - totalGastos - investimentos;
     const economiasPercent = entradas > 0 ? (investimentos / entradas) * 100 : 0;
     const diarioMedio = daysInMonth > 0 ? gastoDiario / daysInMonth : 0;
@@ -353,7 +366,8 @@ export default function CashFlowApp() {
       sobraOrcamentoDaily,
       projecaoMesDaily,
       gastoUsadoPercentDaily,
-      monthLabel: currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+      monthLabel: currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
+      allMonthGastosTxs
     };
   }, [transactions, budgets, currentDate]);
 
@@ -1003,14 +1017,22 @@ export default function CashFlowApp() {
               </button>
 
               {/* Card 3: Custo de Vida */}
-              <div className="bg-gray-800 border border-red-900/30 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+              <button 
+                onClick={() => setIsCostOfLivingOpen(true)}
+                className="w-full text-left bg-gray-800 border border-red-900/30 rounded-2xl p-5 shadow-lg relative overflow-hidden active:scale-[0.98] transition-transform cursor-pointer group hover:border-red-700/50"
+              >
                 <div className="absolute top-0 right-0 w-24 h-24 bg-red-500/10 rounded-full blur-2xl -mr-8 -mt-8"></div>
-                <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">Custo de Vida</h3>
-                <span className="text-2xl font-extrabold text-red-400 tracking-tight tabular-nums">
+                
+                <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider">Custo de Vida</h3>
+                    <ChevronRight size={16} className="text-gray-600 group-hover:text-red-400 transition-colors" />
+                </div>
+                
+                <span className="block text-2xl font-extrabold text-red-400 tracking-tight tabular-nums">
                   {formatCurrency(monthlyTotals.totalGastos)}
                 </span>
-                <p className="text-[10px] text-gray-500 mt-2">Soma de saídas + cartão + gasto diário</p>
-              </div>
+                <p className="text-[10px] text-gray-500 mt-2">Soma de saídas + cartão + gasto diário (Toque para listar)</p>
+              </button>
 
               {/* Card 4: Diário Médio */}
               <button
@@ -1122,6 +1144,58 @@ export default function CashFlowApp() {
                     : `⚠️ Acima do previsto em ${formatCurrency(monthlyTotals.diarioMedioOnly - monthlyTotals.diarioPrevisto)}/dia`}
                 </p>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* --- DASHBOARD DETALHAMENTO CUSTO DE VIDA --- */}
+        {(isCostOfLivingOpen || isCostOfLivingClosing) && (
+          <div className={`absolute inset-0 bg-gray-950 z-50 flex flex-col overflow-hidden ${isCostOfLivingClosing ? 'animate-slide-down' : 'animate-slide-up'}`}>
+            <div className="flex justify-between items-center p-4 border-b border-gray-800 bg-gray-900 shrink-0">
+              <h2 className="text-lg font-bold text-red-400 flex items-center gap-2">
+                <Wallet size={22} className="text-red-500" /> Custo de Vida ({monthlyTotals.monthLabel.split(' ')[0]})
+              </h2>
+              <button onClick={closeCostOfLiving} className="text-gray-400 hover:text-white transition-colors bg-gray-800 p-2 rounded-full cursor-pointer">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-4 bg-gray-900 border-b border-gray-800 flex justify-between items-center shrink-0">
+                <span className="text-sm font-semibold text-gray-400">Total do Mês:</span>
+                <span className="text-xl font-extrabold text-red-400 tabular-nums tracking-tight">{formatCurrency(monthlyTotals.totalGastos)}</span>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-gray-950 pb-24">
+                {monthlyTotals.allMonthGastosTxs.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center pt-20 text-gray-600">
+                        <Wallet size={48} className="mb-4 opacity-20" />
+                        <p className="text-sm">Sem gastos listados neste mês.</p>
+                    </div>
+                ) : (
+                    <div className="space-y-3">
+                        {monthlyTotals.allMonthGastosTxs.map(tx => {
+                            let txColor = 'text-red-400';
+                            if (tx.type === 'cartao') txColor = 'text-purple-400';
+                            if (tx.type === 'gasto_diario') txColor = 'text-amber-400';
+
+                            return (
+                                <div key={tx.id} onClick={() => { closeCostOfLiving(); setTxFormData(prev => ({ ...prev, date: tx.date })); setIsTxModalOpen(true); }} className="flex justify-between items-center bg-gray-800/80 hover:bg-gray-800 p-4 rounded-xl border border-gray-700/50 hover:border-gray-600 transition-colors cursor-pointer group">
+                                    <div className="overflow-hidden flex flex-col gap-1">
+                                        <p className="text-sm font-medium text-gray-200 truncate group-hover:text-white transition-colors">{tx.description}</p>
+                                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                                            <span className="bg-gray-900 px-2 py-0.5 rounded capitalize">{tx.type.replace('_', ' ')}</span>
+                                            <span>•</span>
+                                            <span>{tx.date.split('-').reverse().join('/')}</span>
+                                        </div>
+                                    </div>
+                                    <span className={`text-base font-bold tabular-nums ml-4 shrink-0 ${txColor}`}>
+                                        {formatCurrency(Math.abs(tx.amount))}
+                                    </span>
+                                </div>
+                            )
+                        })}
+                    </div>
+                )}
             </div>
           </div>
         )}
