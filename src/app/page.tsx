@@ -1357,7 +1357,7 @@ export default function CashFlowApp() {
 
             <div className="p-5 flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-6">
               {/* Card Resumo do Ano */}
-              <div className="bg-gray-800 border border-emerald-900/50 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+              <div className="bg-gray-800 border border-emerald-900/50 rounded-2xl p-5 shadow-lg relative overflow-hidden shrink-0">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
                 <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1">Total Protegido no Ano</h3>
                 <div className="flex items-baseline gap-2 mb-4">
