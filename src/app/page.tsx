@@ -96,7 +96,23 @@ export default function CashFlowApp() {
       setIsExcelViewClosing(false);
     }, 300);
   };
+  // Ref pro Scroll de Saldo Excel
+  const excelGridRef = useRef<HTMLDivElement>(null);
 
+  // Efeito para auto-scroll na visão excel 
+  useEffect(() => {
+    if (isExcelViewOpen && excelGridRef.current) {
+      setTimeout(() => {
+        const currentMonthNode = document.getElementById('excel-current-month');
+        if (currentMonthNode && excelGridRef.current) {
+          excelGridRef.current.scrollTo({
+            left: currentMonthNode.offsetLeft - 40,
+            behavior: 'smooth'
+          });
+        }
+      }, 300); // tempo p animar o zoom do modal
+    }
+  }, [isExcelViewOpen]);
   useEffect(() => {
     if (isSavingsDashboardOpen) {
       const timer = setTimeout(() => setShowSavingsProgress(true), 150);
@@ -175,12 +191,12 @@ export default function CashFlowApp() {
   const formatCompactCurrency = (value: number) => {
     const isNegative = value < 0;
     const absVal = Math.abs(value);
-    
+
     if (absVal >= 1000) {
       const formatted = (absVal / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
       return `${isNegative ? '-' : ''}${formatted}k`;
     }
-    
+
     const formattedStr = Math.round(absVal).toLocaleString('pt-BR');
     return `${isNegative ? '-' : ''}${formattedStr}`;
   };
@@ -292,16 +308,7 @@ export default function CashFlowApp() {
     const globalDailyDrain = budgets.reduce((sum, b) => sum + ((Number(b.amount) || 0) / (Number(b.divideBy) || 30)), 0);
 
     let startYear = todayDate.getFullYear();
-    let startMonth = todayDate.getMonth();
-    
-    // Ano/Mes Alvo (janela de 6 meses do excel grid)
-    const baseYear = excelBaseDate.getFullYear();
-    const baseMonth = excelBaseDate.getMonth();
-
-    if (baseYear < startYear || (baseYear === startYear && baseMonth - 1 < startMonth)) {
-      startYear = baseYear;
-      startMonth = baseMonth - 1; // 1 mes antes da tabela como margem p calculo
-    }
+    let startMonth = todayDate.getMonth() - 6;
 
     transactions.forEach(t => {
       const [y, m] = t.date.split('-').map(Number);
@@ -312,13 +319,19 @@ export default function CashFlowApp() {
     });
 
     let simDate = new Date(startYear, startMonth, 1);
-    const endViewedDate = new Date(baseYear, baseMonth + 5, 0); // O array vai renderizar 6 meses (base + 5)
-    
+
+    // Ano/Mes Alvo (Renderiza desde a 1a transação até 12 meses no futuro)
+    const endViewedDate = new Date(todayDate.getFullYear(), todayDate.getMonth() + 24, 0);
+
+    if (endViewedDate.getTime() < simDate.getTime()) {
+      simDate = new Date(todayDate.getFullYear(), todayDate.getMonth() - 6, 1);
+    }
+
     let runningBalance = 0;
     const monthsResult: { year: number, month: number, monthLabel: string, days: any[] }[] = [];
 
     const todayTime = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate()).getTime();
-    
+
     while (simDate <= endViewedDate) {
       const y = simDate.getFullYear();
       const m = simDate.getMonth();
@@ -340,29 +353,26 @@ export default function CashFlowApp() {
       let projectedDrain = (isPastDay) ? 0 : globalDailyDrain;
       runningBalance += sumEntradas - sumOutros - projectedDrain;
 
-      // Só queremos salvar as linhas mensais que estejam dentro da janela de 6 meses solicitada
-      if (simTime >= new Date(baseYear, baseMonth, 1).getTime()) {
-          // Achar on inserir no resultado
-          let monthObj = monthsResult.find(mr => mr.year === y && mr.month === m);
-          if (!monthObj) {
-            monthObj = { 
-                year: y, month: m, 
-                monthLabel: new Date(y, m, 1).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }).replace(' de ', '/'),
-                days: [] 
-            };
-            monthsResult.push(monthObj);
-          }
-          
-          monthObj.days.push({
-             day: d, dateStr, isToday, saldo: runningBalance
-          });
+      // Acumulamos TUDO (Histórico inteiro + Futuro)
+      let monthObj = monthsResult.find(mr => mr.year === y && mr.month === m);
+      if (!monthObj) {
+        monthObj = {
+          year: y, month: m,
+          monthLabel: new Date(y, m, 1).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }).replace(' de ', '/'),
+          days: []
+        };
+        monthsResult.push(monthObj);
       }
+
+      monthObj.days.push({
+        day: d, dateStr, isToday, saldo: runningBalance
+      });
 
       simDate = new Date(y, m, d + 1);
     }
 
     return monthsResult;
-  }, [isExcelViewOpen, excelBaseDate, transactions, budgets, todayDate]);
+  }, [isExcelViewOpen, transactions, budgets, todayDate]);
 
   // --- MOTOR DASHBOARD ECONOMIAS ---
   const annualSavingsData = useMemo(() => {
@@ -682,12 +692,12 @@ export default function CashFlowApp() {
           <div className="flex text-xs text-gray-500 uppercase tracking-wider px-4 py-2 sticky top-0 bg-gray-900/95 backdrop-blur-sm z-10 border-b border-gray-800">
             <div className="w-12 text-center">Dia</div>
             <div className="flex-1 text-center">{filter === 'diario' ? 'Custo / Gasto' : filter}</div>
-            <button 
-                onClick={() => setIsExcelViewOpen(true)}
-                className="w-32 min-w-[8rem] text-right pr-2 leading-tight hover:text-blue-400 transition-colors cursor-pointer group outline-none"
-                title="Ver Saldo de Múltiplos Mês"
+            <button
+              onClick={() => setIsExcelViewOpen(true)}
+              className="w-32 min-w-[8rem] text-right pr-2 leading-tight hover:text-blue-400 transition-colors cursor-pointer group outline-none"
+              title="Ver Saldo de Múltiplos Mês"
             >
-                Saldo<br /><span className="text-[10px] text-gray-600 group-hover:text-blue-500 transition-colors">Aperte para Tabela</span>
+              Saldo<br /><span className="text-[10px] text-gray-600 group-hover:text-blue-500 transition-colors">Aperte para Tabela</span>
             </button>
           </div>
 
@@ -1435,17 +1445,44 @@ export default function CashFlowApp() {
       {(isExcelViewOpen || isExcelViewClosing) && (
         <div className={`fixed inset-0 bg-gray-950 z-[100] flex flex-col overflow-hidden ${isExcelViewClosing ? 'animate-slide-down' : 'animate-slide-up'}`}>
           <div className="flex justify-between items-center p-4 md:p-6 border-b border-gray-800 bg-gray-900 shrink-0">
-            <div className="flex items-center gap-4">
-              <h2 className="text-xl font-bold text-blue-400 flex items-center gap-2">
-                <Calculator className="text-blue-500 hidden md:block" size={26} /> 
-                <span>Monitoramento de Saldos Diários</span>
+            <div className="flex items-center gap-2 md:gap-4 flex-1">
+              <h2 className="text-lg md:text-xl font-bold text-blue-400 flex items-center gap-2">
+                <Calculator className="text-blue-500 hidden md:block" size={26} />
+                <span className="hidden sm:inline">Monitoramento de Saldo</span>
+                <span className="sm:hidden text-base truncate">Monitoramento de Saldo</span>
               </h2>
               <div className="hidden md:flex items-center bg-gray-950 rounded-lg p-1 border border-gray-800 shadow-sm ml-4">
-                <button onClick={() => setExcelBaseDate(new Date(excelBaseDate.getFullYear(), excelBaseDate.getMonth() - 1, 1))} className="p-1 hover:text-blue-400 text-gray-500 hover:bg-gray-800 rounded-md transition-colors"><ChevronLeft size={20} /></button>
-                <span className="font-semibold text-sm tracking-widest px-4 text-center select-none text-gray-300">
-                  Navegar Meses
+                <button
+                  onClick={() => excelGridRef.current?.scrollBy({ left: -320 * 3, behavior: 'smooth' })}
+                  className="p-1 hover:text-blue-400 text-gray-500 hover:bg-gray-800 rounded-md transition-colors"
+                  title="Voltar 3 meses"
+                >
+                  <ChevronLeft size={20} />
+                </button>
+                <button
+                  onClick={() => excelGridRef.current?.scrollBy({ left: -320, behavior: 'smooth' })}
+                  className="p-1 hover:text-blue-400 text-gray-500 hover:bg-gray-800 rounded-md transition-colors ml-1"
+                  title="Voltar 1 mês"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <span className="font-semibold text-[10px] md:text-sm tracking-widest px-2 md:px-4 text-center select-none text-gray-300 uppercase hidden sm:block">
+                  Navegar
                 </span>
-                <button onClick={() => setExcelBaseDate(new Date(excelBaseDate.getFullYear(), excelBaseDate.getMonth() + 1, 1))} className="p-1 hover:text-blue-400 text-gray-500 hover:bg-gray-800 rounded-md transition-colors"><ChevronRight size={20} /></button>
+                <button
+                  onClick={() => excelGridRef.current?.scrollBy({ left: 320, behavior: 'smooth' })}
+                  className="p-1 hover:text-blue-400 text-gray-500 hover:bg-gray-800 rounded-md transition-colors mr-1"
+                  title="Avançar 1 mês"
+                >
+                  <ChevronRight size={16} />
+                </button>
+                <button
+                  onClick={() => excelGridRef.current?.scrollBy({ left: 320 * 3, behavior: 'smooth' })}
+                  className="p-1 hover:text-blue-400 text-gray-500 hover:bg-gray-800 rounded-md transition-colors"
+                  title="Avançar 3 meses"
+                >
+                  <ChevronRight size={20} />
+                </button>
               </div>
             </div>
             <button onClick={closeExcelView} className="text-gray-400 hover:text-white transition-colors bg-gray-800 p-3 rounded-full cursor-pointer border border-gray-700 hover:bg-red-900/50 hover:border-red-700/50">
@@ -1453,44 +1490,53 @@ export default function CashFlowApp() {
             </button>
           </div>
 
-          <div className="flex-1 overflow-auto bg-gray-950 custom-scrollbar">
-             <div className="flex w-fit min-w-full h-fit">
-            {excelData.map((mInfo, idx) => (
-              <div key={`${mInfo.year}-${mInfo.month}`} className="w-[33.33vw] sm:w-[33.33vw] md:w-[280px] lg:w-[320px] max-w-sm flex-shrink-0 flex flex-col border-r border-gray-800 bg-gray-900/10">
-                <div className="bg-gray-900 p-3 md:p-4 sticky top-0 z-10 border-b border-gray-800 shadow-sm text-center flex justify-center items-center px-4 md:px-6">
-                   <h3 className="font-bold text-gray-200 uppercase tracking-widest text-sm md:text-base truncate">{mInfo.monthLabel}</h3>
-                </div>
-                
-                <div className="flex px-3 py-2 bg-gray-900/80 text-[9px] sm:text-[10px] text-gray-400 uppercase tracking-wider border-b border-gray-800 sticky top-14 z-10 backdrop-blur-md">
-                   <div className="w-12 text-center font-bold">Dia</div>
-                   <div className="flex-1 text-right pr-2 font-bold">Saldo Projetado</div>
-                </div>
-                
-                <div className="flex-1 flex flex-col pb-24 px-1 md:px-3 py-2">
-                   {mInfo.days.map(dInfo => {
-                      const isPast = new Date(mInfo.year, mInfo.month, dInfo.day).getTime() < new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate()).getTime();
-                      let saldoColor = dInfo.saldo >= 0 ? 'text-green-400' : 'text-red-400';
-                      if (isPast) saldoColor = 'text-gray-500';
+          <div ref={excelGridRef} className="flex-1 overflow-auto bg-gray-950 custom-scrollbar relative scroll-smooth">
+            <div className="flex w-fit min-w-full h-fit">
+              {excelData.map((mInfo, idx) => {
+                const isCurrentMonth = mInfo.year === todayDate.getFullYear() && mInfo.month === todayDate.getMonth();
 
-                      return (
-                        <div 
-                          key={dInfo.day} 
-                          onClick={() => { setTxFormData(prev => ({ ...prev, date: dInfo.dateStr })); setIsTxModalOpen(true); }}
-                          className={`flex items-center justify-between px-1 md:px-3 py-2.5 rounded-lg border-b border-gray-800/40 cursor-pointer hover:bg-gray-800 transition-colors group mb-1 ${dInfo.isToday ? 'bg-blue-900/30 border-blue-500/50 shadow-[inset_0_0_10px_rgba(59,130,246,0.1)]' : ''}`}
-                        >
-                           <div className="w-8 md:w-12 text-center flex items-center justify-center">
-                             <span className={`text-[12px] md:text-[13px] font-medium ${dInfo.isToday ? 'text-blue-400 font-bold' : (isPast ? 'text-gray-600' : 'text-gray-300')}`}>{String(dInfo.day).padStart(2, '0')}</span>
-                           </div>
-                           <div className="flex-1 text-right pr-1 md:pr-2">
-                             <span className={`text-xs md:hidden tabular-nums font-semibold tracking-tighter ${saldoColor}`}>{formatCompactCurrency(dInfo.saldo)}</span>
-                             <span className={`hidden md:inline text-sm tabular-nums font-semibold tracking-tight group-hover:text-blue-400 transition-colors ${saldoColor}`}>{formatCurrency(dInfo.saldo)}</span>
-                           </div>
-                        </div>
-                      )
-                   })}
-                </div>
-              </div>
-            ))}
+                return (
+                  <div
+                    id={isCurrentMonth ? 'excel-current-month' : undefined}
+                    key={`${mInfo.year}-${mInfo.month}`}
+                    className={`w-[33.33vw] sm:w-[33.33vw] md:w-[280px] lg:w-[320px] max-w-sm flex-shrink-0 flex flex-col border-r border-gray-800 bg-gray-900/10 ${isCurrentMonth ? 'bg-blue-900/5' : ''}`}
+                  >
+                    <div className={`p-3 md:p-4 sticky top-0 z-10 border-b border-gray-800 shadow-sm text-center flex justify-center items-center px-4 md:px-6 ${isCurrentMonth ? 'bg-blue-900/80 shadow-[inset_0_0_10px_rgba(59,130,246,0.2)] text-blue-300' : 'bg-gray-900'}`}>
+                      <h3 className="font-bold uppercase tracking-widest text-sm md:text-base truncate">{mInfo.monthLabel}</h3>
+                      {isCurrentMonth && <span className="absolute top-1 right-2 text-[8px] tracking-widest text-blue-400 font-bold mix-blend-screen opacity-70">HOJE</span>}
+                    </div>
+
+                    <div className="flex px-3 py-2 bg-gray-900/80 text-[9px] sm:text-[10px] text-gray-400 uppercase tracking-wider border-b border-gray-800 sticky top-14 z-10 backdrop-blur-md">
+                      <div className="w-12 text-center font-bold">Dia</div>
+                      <div className="flex-1 text-right pr-2 font-bold">Saldo Projetado</div>
+                    </div>
+
+                    <div className="flex-1 flex flex-col pb-24 px-1 md:px-3 py-2">
+                      {mInfo.days.map(dInfo => {
+                        const isPast = new Date(mInfo.year, mInfo.month, dInfo.day).getTime() < new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate()).getTime();
+                        let saldoColor = dInfo.saldo >= 0 ? 'text-green-400' : 'text-red-400';
+                        if (isPast) saldoColor = 'text-gray-500';
+
+                        return (
+                          <div
+                            key={dInfo.day}
+                            onClick={() => { setTxFormData(prev => ({ ...prev, date: dInfo.dateStr })); setIsTxModalOpen(true); }}
+                            className={`flex items-center justify-between px-1 md:px-3 py-2.5 rounded-lg border-b border-gray-800/40 cursor-pointer hover:bg-gray-800 transition-colors group mb-1 ${dInfo.isToday ? 'bg-blue-900/30 border-blue-500/50 shadow-[inset_0_0_10px_rgba(59,130,246,0.1)]' : ''}`}
+                          >
+                            <div className="w-8 md:w-12 text-center flex items-center justify-center">
+                              <span className={`text-[12px] md:text-[13px] font-medium ${dInfo.isToday ? 'text-blue-400 font-bold' : (isPast ? 'text-gray-600' : 'text-gray-300')}`}>{String(dInfo.day).padStart(2, '0')}</span>
+                            </div>
+                            <div className="flex-1 text-right pr-1 md:pr-2">
+                              <span className={`text-xs md:hidden tabular-nums font-semibold tracking-tighter ${saldoColor}`}>{formatCompactCurrency(dInfo.saldo)}</span>
+                              <span className={`hidden md:inline text-sm tabular-nums font-semibold tracking-tight group-hover:text-blue-400 transition-colors ${saldoColor}`}>{formatCurrency(dInfo.saldo)}</span>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
