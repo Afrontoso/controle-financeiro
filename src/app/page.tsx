@@ -1113,7 +1113,7 @@ export default function CashFlowApp() {
               <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold text-center capitalize">{monthlyTotals.monthLabel}</p>
 
               {/* Card 1: Performance */}
-              <div className="bg-gray-800 border border-gray-700 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+              <div className="bg-gray-800 border border-gray-700 rounded-2xl p-5 shadow-lg relative overflow-hidden shrink-0">
                 <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl -mr-8 -mt-8"></div>
                 <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">Performance</h3>
                 <span className={`text-2xl font-extrabold tracking-tight tabular-nums ${monthlyTotals.performance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
@@ -1125,7 +1125,7 @@ export default function CashFlowApp() {
               {/* Card 2: Economias */}
               <button
                 onClick={() => { setIsSavingsDashboardOpen(true); }}
-                className="w-full bg-gray-800 border border-emerald-900/50 rounded-2xl p-5 shadow-lg relative overflow-hidden text-left hover:border-emerald-700/60 transition-colors active:scale-[0.98] cursor-pointer group"
+                className="w-full bg-gray-800 border border-emerald-900/50 rounded-2xl p-5 shadow-lg relative overflow-hidden text-left hover:border-emerald-700/60 transition-colors active:scale-[0.98] cursor-pointer group shrink-0"
               >
                 <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl -mr-8 -mt-8"></div>
                 <div className="flex justify-between items-center mb-2">
@@ -1152,7 +1152,7 @@ export default function CashFlowApp() {
               {/* Card 3: Custo de Vida */}
               <button
                 onClick={() => setIsCostOfLivingOpen(true)}
-                className="w-full text-left bg-gray-800 border border-red-900/30 rounded-2xl p-5 shadow-lg relative overflow-hidden active:scale-[0.98] transition-transform cursor-pointer group hover:border-red-700/50"
+                className="w-full text-left bg-gray-800 border border-red-900/30 rounded-2xl p-5 shadow-lg relative overflow-hidden active:scale-[0.98] transition-transform cursor-pointer group hover:border-red-700/50 shrink-0"
               >
                 <div className="absolute top-0 right-0 w-24 h-24 bg-red-500/10 rounded-full blur-2xl -mr-8 -mt-8"></div>
 
@@ -1170,7 +1170,7 @@ export default function CashFlowApp() {
               {/* Card 4: Diário Médio */}
               <button
                 onClick={() => { setIsDailyDashOpen(true); }}
-                className="w-full bg-gray-800 border border-amber-900/30 rounded-2xl p-5 shadow-lg relative overflow-hidden text-left hover:border-amber-700/50 transition-colors active:scale-[0.98] cursor-pointer group"
+                className="w-full bg-gray-800 border border-amber-900/30 rounded-2xl p-5 shadow-lg relative overflow-hidden text-left hover:border-amber-700/50 transition-colors active:scale-[0.98] cursor-pointer group shrink-0"
               >
                 <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/10 rounded-full blur-2xl -mr-8 -mt-8"></div>
                 <div className="flex justify-between items-center mb-2">
@@ -1202,7 +1202,7 @@ export default function CashFlowApp() {
               <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold text-center capitalize">{monthlyTotals.monthLabel}</p>
 
               {/* Orçamento Mensal */}
-              <div className="bg-gray-800 border border-blue-900/30 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+              <div className="bg-gray-800 border border-blue-900/30 rounded-2xl p-5 shadow-lg relative overflow-hidden shrink-0">
                 <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl -mr-8 -mt-8"></div>
                 <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">Orçamento Mensal</h3>
                 <span className="text-2xl font-extrabold text-blue-400 tracking-tight tabular-nums">
@@ -1212,7 +1212,7 @@ export default function CashFlowApp() {
               </div>
 
               {/* Já Gastei (apenas gasto diário) */}
-              <div className="bg-gray-800 border border-red-900/30 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+              <div className="bg-gray-800 border border-red-900/30 rounded-2xl p-5 shadow-lg relative overflow-hidden shrink-0">
                 <div className="absolute top-0 right-0 w-24 h-24 bg-red-500/10 rounded-full blur-2xl -mr-8 -mt-8"></div>
                 <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">Já Gastei</h3>
                 <span className="text-2xl font-extrabold text-red-400 tracking-tight tabular-nums">
@@ -1229,7 +1229,7 @@ export default function CashFlowApp() {
               </div>
 
               {/* Sobra do Orçamento */}
-              <div className={`bg-gray-800 border ${monthlyTotals.sobraOrcamentoDaily >= 0 ? 'border-green-900/30' : 'border-red-900/30'} rounded-2xl p-5 shadow-lg relative overflow-hidden`}>
+              <div className={`bg-gray-800 border ${monthlyTotals.sobraOrcamentoDaily >= 0 ? 'border-green-900/30' : 'border-red-900/30'} rounded-2xl p-5 shadow-lg relative overflow-hidden shrink-0`}>
                 <div className={`absolute top-0 right-0 w-24 h-24 ${monthlyTotals.sobraOrcamentoDaily >= 0 ? 'bg-green-500/10' : 'bg-red-500/10'} rounded-full blur-2xl -mr-8 -mt-8`}></div>
                 <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">Sobra do Orçamento</h3>
                 <span className={`text-2xl font-extrabold tracking-tight tabular-nums ${monthlyTotals.sobraOrcamentoDaily >= 0 ? 'text-green-400' : 'text-red-400'}`}>
@@ -1244,7 +1244,7 @@ export default function CashFlowApp() {
 
               {/* Projeção do Mês */}
               {monthlyTotals.diasDecorridos > 0 && (
-                <div className={`bg-gray-800 border ${monthlyTotals.projecaoMesDaily <= monthlyTotals.orcamentoMensal ? 'border-cyan-900/30' : 'border-orange-900/30'} rounded-2xl p-5 shadow-lg relative overflow-hidden`}>
+                <div className={`bg-gray-800 border ${monthlyTotals.projecaoMesDaily <= monthlyTotals.orcamentoMensal ? 'border-cyan-900/30' : 'border-orange-900/30'} rounded-2xl p-5 shadow-lg relative overflow-hidden shrink-0`}>
                   <div className="absolute top-0 right-0 w-24 h-24 bg-cyan-500/10 rounded-full blur-2xl -mr-8 -mt-8"></div>
                   <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">Projeção do Mês</h3>
                   <span className={`text-2xl font-extrabold tracking-tight tabular-nums ${monthlyTotals.projecaoMesDaily <= monthlyTotals.orcamentoMensal ? 'text-cyan-400' : 'text-orange-400'}`}>
@@ -1257,7 +1257,7 @@ export default function CashFlowApp() {
               )}
 
               {/* Comparativo Real vs Previsto */}
-              <div className="bg-gray-800 border border-amber-900/30 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+              <div className="bg-gray-800 border border-amber-900/30 rounded-2xl p-5 shadow-lg relative overflow-hidden shrink-0">
                 <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/10 rounded-full blur-2xl -mr-8 -mt-8"></div>
                 <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-3">Gasto Diário: Real vs Previsto</h3>
                 <div className="flex gap-4">
