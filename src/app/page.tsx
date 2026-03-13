@@ -201,6 +201,15 @@ export default function CashFlowApp() {
     return `${isNegative ? '-' : ''}${formattedStr}`;
   };
 
+  const getSaldoBalanceStyles = (balance: number) => {
+    if (balance >= 2000) return 'text-emerald-400 font-bold';
+    if (balance > 500 && balance < 2000) return 'text-green-400 font-semibold';
+    if (balance >= 100 && balance <= 500) return 'text-yellow-400 font-semibold';
+    if (balance >= 0 && balance < 100) return 'text-blue-400 font-semibold';
+    if (balance >= -1000 && balance < 0) return 'text-orange-400 font-semibold';
+    return 'text-red-400 font-bold';
+  };
+
   // --- MOTOR FINANCEIRO CONTÍNUO ---
   const monthlyData = useMemo(() => {
     const targetYear = currentDate.getFullYear();
@@ -1514,8 +1523,24 @@ export default function CashFlowApp() {
                     <div className="flex-1 flex flex-col pb-24 px-1 md:px-3 py-2">
                       {mInfo.days.map(dInfo => {
                         const isPast = new Date(mInfo.year, mInfo.month, dInfo.day).getTime() < new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate()).getTime();
-                        let saldoColor = dInfo.saldo >= 0 ? 'text-green-400' : 'text-red-400';
-                        if (isPast) saldoColor = 'text-gray-500';
+
+                        // Lógica de Classes baseadas no passado vs futuro
+                        let badgeClasses = "";
+                        let textClassesMobile = "";
+                        let textClassesDesktop = "";
+
+                        if (isPast) {
+                          // Cinza para o passado
+                          badgeClasses = "text-gray-500 bg-transparent px-0";
+                          textClassesMobile = "text-xs tabular-nums font-semibold tracking-tighter sm:hidden";
+                          textClassesDesktop = "text-sm tabular-nums font-semibold tracking-tight hidden sm:inline";
+                        } else {
+                          // Colorido com pílula de background para o futuro/hj
+                          const colorTheme = getSaldoBalanceStyles(dInfo.saldo);
+                          badgeClasses = `${colorTheme} px-1.5 py-0.5 rounded-md inline-block min-w-[50px] shadow-sm`;
+                          textClassesMobile = "text-[11px] tabular-nums sm:hidden";
+                          textClassesDesktop = "text-xs tabular-nums hidden sm:inline";
+                        }
 
                         return (
                           <div
@@ -1527,8 +1552,10 @@ export default function CashFlowApp() {
                               <span className={`text-[12px] md:text-[13px] font-medium ${dInfo.isToday ? 'text-blue-400 font-bold' : (isPast ? 'text-gray-600' : 'text-gray-300')}`}>{String(dInfo.day).padStart(2, '0')}</span>
                             </div>
                             <div className="flex-1 text-right pr-1 md:pr-2">
-                              <span className={`text-xs md:hidden tabular-nums font-semibold tracking-tighter ${saldoColor}`}>{formatCompactCurrency(dInfo.saldo)}</span>
-                              <span className={`hidden md:inline text-sm tabular-nums font-semibold tracking-tight group-hover:text-blue-400 transition-colors ${saldoColor}`}>{formatCurrency(dInfo.saldo)}</span>
+                              <div className={badgeClasses}>
+                                <span className={textClassesMobile}>{formatCompactCurrency(dInfo.saldo)}</span>
+                                <span className={textClassesDesktop}>{formatCurrency(dInfo.saldo)}</span>
+                              </div>
                             </div>
                           </div>
                         )
