@@ -1,11 +1,19 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 export async function DELETE(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const session = await getServerSession(authOptions);
+        if (!session || !session.user) {
+            return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+        }
+        const userId = (session.user as any).id;
+
         const { id } = await params;
         if (!id) {
             return NextResponse.json({ error: "No ID provided" }, { status: 400 });
@@ -15,8 +23,8 @@ export async function DELETE(
         const body = bodyText ? JSON.parse(bodyText) : {};
         const { deleteAll } = body;
 
-        const transaction = await prisma.transaction.findUnique({
-            where: { id },
+        const transaction = await prisma.transaction.findFirst({
+            where: { id, userId },
             select: { groupId: true }
         });
 
@@ -47,6 +55,12 @@ export async function PATCH(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const session = await getServerSession(authOptions);
+        if (!session || !session.user) {
+            return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+        }
+        const userId = (session.user as any).id;
+
         const { id } = await params;
         if (!id) {
             return NextResponse.json({ error: "No ID provided" }, { status: 400 });
@@ -55,8 +69,8 @@ export async function PATCH(
         const data = await request.json();
         const { description, amount, type, date, updateAll } = data;
 
-        const transaction = await prisma.transaction.findUnique({
-            where: { id },
+        const transaction = await prisma.transaction.findFirst({
+            where: { id, userId },
             select: { groupId: true }
         });
 

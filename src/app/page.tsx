@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Plus, ChevronLeft, ChevronRight, Wallet, X, Target, Trash2, Edit2, TrendingUp, Calculator } from 'lucide-react';
+import { useSession, signIn, signOut } from "next-auth/react";
 
 // Tipagens
 interface Transaction {
@@ -22,6 +23,8 @@ interface Budget {
 }
 
 export default function CashFlowApp() {
+  const { data: session, status } = useSession();
+  
   const [todayDate] = useState(new Date());
   const [currentDate, setCurrentDate] = useState(new Date(todayDate.getFullYear(), todayDate.getMonth(), 1));
 
@@ -130,7 +133,15 @@ export default function CashFlowApp() {
   const fetchTransacoes = async () => {
     try {
       const res = await fetch("/api/transactions");
+      if (!res.ok) {
+        setTransactions([]);
+        return;
+      }
       const data = await res.json();
+      if (!Array.isArray(data)) {
+        setTransactions([]);
+        return;
+      }
       const formatTxs = data.map((t: any) => ({
         id: t.id,
         // Remove a parte de hora para bater string com o loop manual, converte DB datetime em string pura YYYY-MM-DD local
@@ -143,16 +154,24 @@ export default function CashFlowApp() {
         originalAmount: t.amount // Positivo entrada neg saida
       }));
       setTransactions(formatTxs);
-    } catch (e) { console.error("Erro fetch txs", e); }
+    } catch (e) { 
+      console.error("Erro fetch txs", e); 
+      setTransactions([]);
+    }
   }
 
   const fetchBudgets = async () => {
     try {
       const res = await fetch("/api/budgets");
+      if (!res.ok) {
+        setBudgets([]);
+        return;
+      }
       const data = await res.json();
-      setBudgets(data);
+      setBudgets(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error("Erro fetch budgets", e);
+      setBudgets([]);
     }
   }
 
@@ -215,13 +234,16 @@ export default function CashFlowApp() {
     const targetYear = currentDate.getFullYear();
     const targetMonth = currentDate.getMonth();
 
-    const globalDailyDrain = budgets.reduce((sum, b) => {
+    const safeBudgets = Array.isArray(budgets) ? budgets : [];
+    const safeTransactions = Array.isArray(transactions) ? transactions : [];
+
+    const globalDailyDrain = safeBudgets.reduce((sum, b) => {
       const amt = Number(b.amount) || 0;
       const div = Number(b.divideBy) || 30;
       return sum + (amt / div);
     }, 0);
 
-    const totalBudgetAmount = budgets.reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
+    const totalBudgetAmount = safeBudgets.reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
 
     let startYear = todayDate.getFullYear();
     let startMonth = todayDate.getMonth();
@@ -231,7 +253,7 @@ export default function CashFlowApp() {
       startMonth = targetMonth;
     }
 
-    transactions.forEach(t => {
+    safeTransactions.forEach(t => {
       const [y, m] = t.date.split('-').map(Number);
       if (y < startYear || (y === startYear && m - 1 < startMonth)) {
         startYear = y;
@@ -648,7 +670,26 @@ export default function CashFlowApp() {
     });
   };
 
-  if (loading) return <div className="min-h-screen bg-gray-950 flex items-center justify-center text-white">Carregando Fluxo de Caixa...</div>
+  if (status === "loading" || loading) return <div className="min-h-screen bg-gray-950 flex items-center justify-center text-white">Carregando Fluxo de Caixa...</div>
+
+  if (status === "unauthenticated") {
+    return (
+      <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center text-white px-4">
+        <div className="w-16 h-16 bg-blue-900/30 rounded-2xl flex items-center justify-center mb-6 border border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.2)]">
+          <Wallet className="text-blue-400 w-8 h-8" />
+        </div>
+        <h1 className="text-3xl font-bold mb-2 tracking-tight text-center">Controle Financeiro</h1>
+        <p className="text-gray-400 mb-8 text-center max-w-xs">Faça login para acessar suas finanças com segurança.</p>
+        <button 
+          onClick={() => signIn("google")} 
+          className="flex items-center space-x-3 bg-white text-gray-900 px-6 py-3 rounded-xl font-bold hover:bg-gray-100 transition-colors active:scale-95 shadow-lg"
+        >
+          <svg className="w-5 h-5" viewBox="0 0 24 24"><path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+          <span>Entrar com o Google</span>
+        </button>
+      </div>
+    );
+  }
   return (
     <div className="h-[100dvh] w-full overflow-hidden bg-gray-950 text-gray-100 font-sans md:flex md:justify-center">
       <div className="w-full max-w-md bg-gray-900 h-full relative shadow-2xl overflow-hidden flex flex-col">
@@ -676,13 +717,28 @@ export default function CashFlowApp() {
             <button onClick={nextMonth} className="p-1 hover:text-blue-400 hover:bg-gray-800 rounded-md transition-colors"><ChevronRight size={18} /></button>
           </div>
 
-          <button
-            onClick={() => setIsTotalsOpen(true)}
-            className="flex items-center justify-center w-10 h-10 bg-gray-900 hover:bg-gray-800 rounded-xl shadow-inner border border-gray-700 transition-colors active:scale-95 cursor-pointer text-blue-400"
-            title="Totais do Mês"
-          >
-            <Calculator size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsTotalsOpen(true)}
+              className="flex items-center justify-center w-10 h-10 bg-gray-900 hover:bg-gray-800 rounded-xl shadow-inner border border-gray-700 transition-colors active:scale-95 cursor-pointer text-blue-400"
+              title="Totais do Mês"
+            >
+              <Calculator size={20} />
+            </button>
+            <div className="relative group cursor-pointer" onClick={() => signOut()}>
+              {session?.user?.image ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img src={session.user.image} alt="Perfil" className="w-10 h-10 rounded-xl border border-gray-700 pointer-events-none" />
+              ) : (
+                <div className="w-10 h-10 rounded-xl bg-gray-800 flex items-center justify-center border border-gray-700">
+                  <span className="text-sm font-bold text-gray-300">{session?.user?.name?.charAt(0) || 'U'}</span>
+                </div>
+              )}
+              <div className="absolute right-0 top-12 bg-red-900/90 hidden group-hover:flex items-center justify-center px-4 py-1.5 rounded-lg text-red-100 text-xs shadow-xl border border-red-700/50 whitespace-nowrap z-50">
+               Sair
+              </div>
+            </div>
+          </div>
         </header>
 
         <div className="p-4 bg-gray-900 border-b border-gray-800 shrink-0">
