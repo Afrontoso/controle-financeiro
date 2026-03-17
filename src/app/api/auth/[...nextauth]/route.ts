@@ -17,14 +17,14 @@ export const authOptions: AuthOptions = {
   },
   callbacks: {
     async session({ session, token }) {
-      if (session.user && token.sub) {
-        (session.user as any).id = token.sub; // Anexa o ID do banco na sessão pro Frontend saber
+      if (session.user && token.id) {
+        (session.user as any).id = token.id; // Garante o ID interno do banco no Frontend
       }
       return session;
     },
     async jwt({ token, user }) {
       if (user) {
-        token.sub = user.id;
+        token.id = user.id; // Armazena o CUID/UUID do banco no token
       }
       return token;
     }

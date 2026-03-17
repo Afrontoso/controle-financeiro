@@ -41,6 +41,7 @@ export default function CashFlowApp() {
   const [showSavingsProgress, setShowSavingsProgress] = useState(false);
   const [isTotalsOpen, setIsTotalsOpen] = useState(false);
   const [isTotalsClosing, setIsTotalsClosing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const closeSavingsDashboard = () => {
     setIsSavingsClosing(true);
@@ -67,8 +68,10 @@ export default function CashFlowApp() {
   const [excelBaseDate, setExcelBaseDate] = useState(new Date(todayDate.getFullYear(), todayDate.getMonth(), 1));
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastType, setToastType] = useState<'success' | 'error'>('success');
 
-  const showToast = (msg: string) => {
+  const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
+    setToastType(type);
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
@@ -539,95 +542,113 @@ export default function CashFlowApp() {
   // --- HANDLERS DE FORMULÁRIO API ---
   const handleAddOrEditTransaction = async (e: React.FormEvent, applyToAll: boolean = false) => {
     e.preventDefault();
-    if (!txFormData.amount || !txFormData.description) return;
+    if (isSubmitting || !txFormData.amount || !txFormData.description) return;
 
-    // Se estiver editando e for a primeira tela de confirmação (antes do modal 'todas vs só essa')
-    if (txFormData.id && txFormData.groupId && !editConfirmData.show) {
-      setEditConfirmData({ show: true });
-      return;
+    setIsSubmitting(true);
+    try {
+      // Se estiver editando e for a primeira tela de confirmação (antes do modal 'todas vs só essa')
+      if (txFormData.id && txFormData.groupId && !editConfirmData.show && !applyToAll) {
+        setEditConfirmData({ show: true });
+        setIsSubmitting(false); // Libera para a próxima ação de escolha (Todas ou Só essa)
+        return;
+      }
+
+      // Trava Tipo conforme o Filtro da View, pra evitar erros, exceto se eu estiver no "Diário" (geral)
+      let realType = txFormData.type;
+      if (filter === 'entradas') realType = 'entrada';
+      if (filter === 'saidas') realType = 'saida';
+      if (filter === 'cartao') realType = 'cartao';
+      if (filter === 'investimento') realType = 'investimento';
+      if (filter === 'gasto_diario') realType = 'gasto_diario';
+
+      const isPositiveForce = realType === 'entrada';
+      let realAmount = parseFloat(txFormData.amount);
+
+      // Converte de novo pra API do jeito antigo (+ ou -) para manter consistencia no banco
+      const apiAmount = isPositiveForce ? realAmount : -Math.abs(realAmount);
+
+      const txBody: any = {
+        description: txFormData.description,
+        amount: apiAmount,
+        date: new Date(`${txFormData.date}T12:00:00`).toISOString(),
+        type: realType,
+        category: realType,
+      }
+
+      if (!txFormData.id) {
+        txBody.repeatCount = txFormData.repeatEnabled ? parseInt(txFormData.repeatCount) : undefined;
+        txBody.repeatFrequency = txFormData.repeatEnabled ? txFormData.repeatFrequency : undefined;
+        txBody.isIndeterminate = txFormData.repeatEnabled ? txFormData.isIndeterminate : false;
+
+        await fetch("/api/transactions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(txBody)
+        });
+      } else {
+        txBody.updateAll = applyToAll;
+        await fetch(`/api/transactions/${txFormData.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(txBody)
+        });
+      }
+
+      await fetchTransacoes();
+
+      setIsTxModalOpen(false);
+      setEditConfirmData({ show: false });
+
+      const isEditing = !!txFormData.id;
+      setTxFormData(prev => ({ ...prev, amount: '', description: '', repeatEnabled: false, repeatFrequency: 'mensal', repeatCount: '2', isIndeterminate: false, id: undefined, groupId: undefined }));
+
+      showToast(isEditing ? 'Transação atualizada com sucesso!' : 'Transação registrada com sucesso!');
+    } catch (error) {
+      console.error("Erro ao salvar transação:", error);
+      showToast('Ocorreu um erro ao salvar.', 'error');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    // Trava Tipo conforme o Filtro da View, pra evitar erros, exceto se eu estiver no "Diário" (geral)
-    let realType = txFormData.type;
-    if (filter === 'entradas') realType = 'entrada';
-    if (filter === 'saidas') realType = 'saida';
-    if (filter === 'cartao') realType = 'cartao';
-    if (filter === 'investimento') realType = 'investimento';
-    if (filter === 'gasto_diario') realType = 'gasto_diario';
-
-    const isPositiveForce = realType === 'entrada';
-    let realAmount = parseFloat(txFormData.amount);
-
-    // Converte de novo pra API do jeito antigo (+ ou -) para manter consistencia no banco
-    const apiAmount = isPositiveForce ? realAmount : -Math.abs(realAmount);
-
-    const txBody: any = {
-      description: txFormData.description,
-      amount: apiAmount,
-      date: new Date(`${txFormData.date}T12:00:00`).toISOString(),
-      type: realType,
-      category: realType,
-    }
-
-    if (!txFormData.id) {
-      txBody.repeatCount = txFormData.repeatEnabled ? parseInt(txFormData.repeatCount) : undefined;
-      txBody.repeatFrequency = txFormData.repeatEnabled ? txFormData.repeatFrequency : undefined;
-      txBody.isIndeterminate = txFormData.repeatEnabled ? txFormData.isIndeterminate : false;
-
-      await fetch("/api/transactions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(txBody)
-      });
-    } else {
-      txBody.updateAll = applyToAll;
-      await fetch(`/api/transactions/${txFormData.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(txBody)
-      });
-    }
-
-    await fetchTransacoes();
-
-    setIsTxModalOpen(false);
-    setEditConfirmData({ show: false });
-
-    const isEditing = !!txFormData.id;
-    setTxFormData(prev => ({ ...prev, amount: '', description: '', repeatEnabled: false, repeatFrequency: 'mensal', repeatCount: '2', isIndeterminate: false, id: undefined, groupId: undefined }));
-
-    showToast(isEditing ? 'Transação atualizada com sucesso!' : 'Transação registrada com sucesso!');
   };
 
   const handleSaveBudget = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!budgetFormData.name || !budgetFormData.amount) return;
+    if (isSubmitting || !budgetFormData.name || !budgetFormData.amount) return;
 
-    const body = {
-      name: budgetFormData.name,
-      amount: Number(budgetFormData.amount),
-      divideBy: Number(budgetFormData.divideBy)
-    };
+    setIsSubmitting(true);
+    try {
+      const body = {
+        name: budgetFormData.name,
+        amount: Number(budgetFormData.amount),
+        divideBy: Number(budgetFormData.divideBy)
+      };
 
-    if (budgetFormData.id) {
-      // Edit
-      await fetch(`/api/budgets/${budgetFormData.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body)
-      });
-    } else {
-      // Create
-      await fetch(`/api/budgets`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body)
-      });
+      if (budgetFormData.id) {
+        // Edit
+        await fetch(`/api/budgets/${budgetFormData.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+      } else {
+        // Create
+        await fetch(`/api/budgets`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+      }
+
+      await fetchBudgets();
+      setIsBudgetModalOpen(false);
+      setBudgetFormData({ id: null, name: '', amount: '', divideBy: '30' });
+      showToast('Orçamento salvo com sucesso!');
+    } catch (error) {
+      console.error("Erro ao salvar orçamento:", error);
+      showToast('Erro ao salvar orçamento.', 'error');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    await fetchBudgets();
-    setIsBudgetModalOpen(false);
-    setBudgetFormData({ id: null, name: '', amount: '', divideBy: '30' });
   };
 
   const deleteBudget = async (id: string) => {
@@ -1078,8 +1099,12 @@ export default function CashFlowApp() {
                   </div>
                 )}
 
-                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 transition-colors text-white font-semibold rounded-lg p-3 flex justify-center items-center gap-2 mt-2">
-                  <Plus size={20} /> {txFormData.id ? 'Salvar Edição' : 'Registrar'}
+                <button type="submit" disabled={isSubmitting} className={`w-full ${isSubmitting ? 'bg-gray-700 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'} transition-colors text-white font-semibold rounded-lg p-3 flex justify-center items-center gap-2 mt-2`}>
+                  {isSubmitting ? (
+                    <>Aguarde...</>
+                  ) : (
+                    <><Plus size={20} /> {txFormData.id ? 'Salvar Edição' : 'Registrar'}</>
+                  )}
                 </button>
               </form>
 
@@ -1121,11 +1146,11 @@ export default function CashFlowApp() {
                   <p className="text-sm text-gray-400 mb-6">Esta transação faz parte de uma repetição. Como deseja salvar as alterações?</p>
 
                   <div className="w-full flex flex-col gap-2">
-                    <button onClick={(e) => handleAddOrEditTransaction(e, true)} className="w-full bg-blue-900/40 text-blue-400 hover:bg-blue-900/60 border border-blue-500/50 p-3 rounded-lg font-medium transition-colors">
-                      Alterar TODAS as parcelas
+                    <button onClick={(e) => handleAddOrEditTransaction(e, true)} disabled={isSubmitting} className={`w-full ${isSubmitting ? 'bg-gray-800 opacity-50' : 'bg-blue-900/40 hover:bg-blue-900/60'} text-blue-400 border border-blue-500/50 p-3 rounded-lg font-medium transition-colors`}>
+                      {isSubmitting ? 'Processando...' : 'Alterar TODAS as parcelas'}
                     </button>
-                    <button onClick={(e) => handleAddOrEditTransaction(e, false)} className="w-full bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700 p-3 rounded-lg font-medium transition-colors">
-                      Alterar APENAS esta parcela
+                    <button onClick={(e) => handleAddOrEditTransaction(e, false)} disabled={isSubmitting} className={`w-full ${isSubmitting ? 'bg-gray-800 opacity-50' : 'bg-gray-800 hover:bg-gray-700'} text-gray-300 border border-gray-700 p-3 rounded-lg font-medium transition-colors`}>
+                      {isSubmitting ? 'Processando...' : 'Alterar APENAS esta parcela'}
                     </button>
                   </div>
 
@@ -1145,7 +1170,9 @@ export default function CashFlowApp() {
                 <input type="text" placeholder="Nome / Categoria" value={budgetFormData.name} onChange={(e) => setBudgetFormData({ ...budgetFormData, name: e.target.value })} className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg p-3 outline-none" required />
                 <input type="number" step="0.01" min="0" placeholder="Valor Mensal Previsto" value={budgetFormData.amount} onChange={(e) => setBudgetFormData({ ...budgetFormData, amount: e.target.value })} className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg p-3 outline-none" required />
                 <input type="number" min="1" max="31" placeholder="Dividir por (Dias)" value={budgetFormData.divideBy} onChange={(e) => setBudgetFormData({ ...budgetFormData, divideBy: e.target.value })} className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg p-3 outline-none" required />
-                <button type="submit" className="w-full bg-blue-600 text-white font-semibold rounded-lg p-3">Salvar</button>
+                <button type="submit" disabled={isSubmitting} className={`w-full ${isSubmitting ? 'bg-gray-700' : 'bg-blue-600'} text-white font-semibold rounded-lg p-3`}>
+                  {isSubmitting ? 'Salvando...' : 'Salvar'}
+                </button>
               </form>
             </div>
           </div>
@@ -1498,7 +1525,7 @@ export default function CashFlowApp() {
         {toastMessage && (
           <div className="absolute bottom-6 w-full px-4 flex justify-center z-[100] pointer-events-none">
             <div className="w-fit min-w-[280px] max-w-[90%] bg-gray-800 text-white px-6 py-3 rounded-full shadow-2xl border border-gray-700/50 flex items-center justify-center gap-3 animate-toast opacity-95 pointer-events-auto">
-              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></div>
+              <div className={`w-2 h-2 rounded-full animate-pulse shrink-0 ${toastType === 'error' ? 'bg-red-500' : 'bg-emerald-400'}`}></div>
               <span className="font-medium text-sm truncate">{toastMessage}</span>
             </div>
           </div>
