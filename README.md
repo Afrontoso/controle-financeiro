@@ -1,36 +1,78 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 💰 Controle Financeiro
 
-## Getting Started
+Uma aplicação moderna e intuitiva para gestão de finanças pessoais, focada em simplicidade e eficiência.
 
-First, run the development server:
+## 🔗 Link da Aplicação
+Acesse agora: [https://controle-financeiro-lime-gamma.vercel.app/](https://controle-financeiro-lime-gamma.vercel.app/)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+---
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 👤 Guia do Usuário
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### ✨ Principais Funcionalidades
+- **Gestão de Transações**: Registre entradas, saídas, gastos com cartão de crédito e investimentos.
+- **Transações Recorrentes**: Configure repetições automáticas (diárias, semanais ou mensais) para facilitar o registro de contas fixas.
+- **Visualização Flexível**: Alterne entre visão diária, de entradas, saídas, cartão ou investimentos.
+- **Previsão Diária**: Entenda quanto você pode gastar por dia baseado em seu orçamento.
+- **Dashboard de Economias**: Monitore seu progresso e quanto está guardando mensalmente.
+- **Totais Mensais**: Resumo detalhado de performance, ganhos e evolução dos orçamentos.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 🚀 Como Começar
+1. Acesse o [Link da Aplicação](https://controle-financeiro-lime-gamma.vercel.app/).
+2. Faça login com sua conta **Google** de forma segura.
+3. Comece a registrar suas transações e planeje seus orçamentos mensais.
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## 👨‍💻 Guia do Desenvolvedor
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Esta aplicação foi construída utilizando as tecnologias mais modernas do ecossistema React/Next.js.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 🛠 Stack Tecnológica
+- **Framework**: [Next.js 15+](https://nextjs.org/) (App Router)
+- **Linguagem**: TypeScript
+- **Banco de Dados**: PostgreSQL (Hospedado no [Neon](https://neon.tech/))
+- **ORM**: [Prisma](https://www.prisma.io/)
+- **Autenticação**: [NextAuth.js](https://next-auth.js.org/) (Google OAuth)
+- **Estilização**: [Tailwind CSS 4](https://tailwindcss.com/)
+- **Ícones**: [Lucide React](https://lucide.dev/)
 
-## Deploy on Vercel
+### ⚙️ Rodando Localmente
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. **Clonar o Repositório**:
+   ```bash
+   git clone https://github.com/seu-usuario/controle-financeiro.git
+   cd controle-financeiro
+   ```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+2. **Instalar Dependências**:
+   ```bash
+   npm install
+   ```
+
+3. **Configurar Variáveis de Ambiente**:
+   Crie um arquivo `.env` na raiz do projeto e preencha com as seguintes chaves (use o `.env.example` se disponível):
+   ```env
+   DATABASE_URL="..."
+   NEXTAUTH_SECRET="..."
+   NEXTAUTH_URL="http://localhost:3000"
+   GOOGLE_CLIENT_ID="..."
+   GOOGLE_CLIENT_SECRET="..."
+   ```
+
+4. **Configurar o Banco de Dados**:
+   ```bash
+   npx prisma generate
+   npx prisma migrate dev
+   ```
+
+5. **Iniciar Servidor de Desenvolvimento**:
+   ```bash
+   npm run dev
+   ```
+   Acesse: [http://localhost:3000](http://localhost:3000)
+
+---
+
+## 📝 Licença
+Desenvolvido por **Victor Assis**. Sinta-se à vontade para entrar em contato ou reportar bugs!
