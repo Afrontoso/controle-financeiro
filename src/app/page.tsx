@@ -1118,19 +1118,31 @@ export default function CashFlowApp() {
                     <>
                       <p className="text-sm text-gray-400 mb-6">Esta transação faz parte de uma repetição. O que você deseja excluir?</p>
                       <div className="w-full flex flex-col gap-2">
-                        <button onClick={() => deleteTransaction(deleteConfirmData.id, true)} className="w-full bg-red-900/40 text-red-500 hover:bg-red-900/60 border border-red-500/50 p-3 rounded-lg font-medium transition-colors">
-                          Excluir TODAS as parcelas
+                        <button 
+                          onClick={() => deleteTransaction(deleteConfirmData.id, true)} 
+                          disabled={deletingTxId !== null}
+                          className={`w-full ${deletingTxId !== null ? 'bg-red-900/20 text-red-500/50 cursor-not-allowed' : 'bg-red-900/40 text-red-500 hover:bg-red-900/60'} border border-red-500/50 p-3 rounded-lg font-medium transition-colors flex justify-center items-center gap-2`}
+                        >
+                          {deletingTxId !== null ? <><div className="w-4 h-4 border-2 border-red-500/30 border-t-red-500 rounded-full animate-spin" /> Excluindo...</> : 'Excluir TODAS as parcelas'}
                         </button>
-                        <button onClick={() => deleteTransaction(deleteConfirmData.id, false)} className="w-full bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700 p-3 rounded-lg font-medium transition-colors">
-                          Excluir APENAS esta parcela
+                        <button 
+                          onClick={() => deleteTransaction(deleteConfirmData.id, false)} 
+                          disabled={deletingTxId !== null}
+                          className={`w-full ${deletingTxId !== null ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'} border border-gray-700 p-3 rounded-lg font-medium transition-colors flex justify-center items-center gap-2`}
+                        >
+                          {deletingTxId !== null ? <><div className="w-4 h-4 border-2 border-gray-500/30 border-t-gray-500 rounded-full animate-spin" /> Excluindo...</> : 'Excluir APENAS esta parcela'}
                         </button>
                       </div>
                     </>
                   ) : (
                     <>
                       <p className="text-sm text-gray-400 mb-6">Tem certeza que deseja apagar permanentemente esta transação?</p>
-                      <button onClick={() => deleteTransaction(deleteConfirmData.id, false)} className="w-full bg-red-900/40 text-red-500 hover:bg-red-900/60 border border-red-500/50 p-3 rounded-lg font-medium transition-colors">
-                        Sim, excluir transação
+                      <button 
+                        onClick={() => deleteTransaction(deleteConfirmData.id, false)} 
+                        disabled={deletingTxId !== null}
+                        className={`w-full ${deletingTxId !== null ? 'bg-red-900/20 text-red-500/50 cursor-not-allowed' : 'bg-red-900/40 text-red-500 hover:bg-red-900/60'} border border-red-500/50 p-3 rounded-lg font-medium transition-colors flex justify-center items-center gap-2`}
+                      >
+                        {deletingTxId !== null ? <><div className="w-4 h-4 border-2 border-red-500/30 border-t-red-500 rounded-full animate-spin" /> Excluindo...</> : 'Sim, excluir transação'}
                       </button>
                     </>
                   )}
