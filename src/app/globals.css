@@ -1,18 +1,307 @@
 @import "tailwindcss";
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+/* O tema escuro é controlado por classe no <html>, não por prefers-color-scheme,
+   porque o usuário pode alternar manualmente. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------------------------------------------------------------
+   TOKENS — tema claro (padrão)
+   --------------------------------------------------------------- */
+:root {
+  color-scheme: light;
+
+  /* superfícies */
+  --bg: #f4f4f2;
+  --surface: #ffffff;
+  --surface-2: #fafaf9;
+  --surface-3: #f0f0ee;
+  --overlay: rgb(24 24 27 / 0.45);
+
+  /* traços */
+  --border: #e7e7e4;
+  --border-strong: #d4d4d0;
+
+  /* texto */
+  --fg: #18181b;
+  --fg-muted: #71717a;
+  --fg-subtle: #a1a1aa;
+  --fg-inverse: #ffffff;
+
+  /* marca */
+  --brand: #1c1c1e;
+  --brand-fg: #ffffff;
+  --focus: #7c3aed;
+
+  /* tipos de lançamento */
+  --entrada: #2f9e51;
+  --entrada-soft: #e8f5ec;
+  --saida: #c62828;
+  --saida-soft: #fdeaea;
+  --diario: #c2185b;
+  --diario-soft: #fce8f0;
+  --economia: #7cb342;
+  --economia-soft: #f0f7e6;
+  --cartao: #6d28d9;
+  --cartao-soft: #f1ebfd;
+
+  /* heatmap de saldo — do mais confortável ao mais crítico */
+  --heat-pos-2: #86cf8a;
+  --heat-pos-2-fg: #14361c;
+  --heat-pos-1: #b7e3b6;
+  --heat-pos-1-fg: #1d4322;
+  --heat-pos-0: #d7f0d3;
+  --heat-pos-0-fg: #26502a;
+  --heat-zero: #f7edc4;
+  --heat-zero-fg: #5b4a12;
+  --heat-neg-0: #f8d3d3;
+  --heat-neg-0-fg: #6d1f1f;
+  --heat-neg-1: #f0a3a3;
+  --heat-neg-1-fg: #5c1414;
+  --heat-neg-2: #e06a6a;
+  --heat-neg-2-fg: #ffffff;
+
+  /* elevação */
+  --shadow-sm: 0 1px 2px rgb(24 24 27 / 0.06);
+  --shadow-md: 0 4px 14px -4px rgb(24 24 27 / 0.12);
+  --shadow-lg: 0 18px 48px -12px rgb(24 24 27 / 0.22);
 }
 
+/* ---------------------------------------------------------------
+   TOKENS — tema escuro
+   --------------------------------------------------------------- */
+.dark {
+  color-scheme: dark;
+
+  --bg: #0b0b0d;
+  --surface: #141417;
+  --surface-2: #1b1b1f;
+  --surface-3: #232329;
+  --overlay: rgb(0 0 0 / 0.6);
+
+  --border: #26262c;
+  --border-strong: #35353d;
+
+  --fg: #f4f4f5;
+  --fg-muted: #a1a1aa;
+  --fg-subtle: #6b6b75;
+  --fg-inverse: #18181b;
+
+  --brand: #f4f4f5;
+  --brand-fg: #18181b;
+  --focus: #a78bfa;
+
+  --entrada: #4ade80;
+  --entrada-soft: #12301d;
+  --saida: #f87171;
+  --saida-soft: #341617;
+  --diario: #f472b6;
+  --diario-soft: #34162a;
+  --economia: #a3e635;
+  --economia-soft: #232f10;
+  --cartao: #a78bfa;
+  --cartao-soft: #241a3d;
+
+  --heat-pos-2: #2f6b3c;
+  --heat-pos-2-fg: #dcf5e2;
+  --heat-pos-1: #27562f;
+  --heat-pos-1-fg: #cdebd3;
+  --heat-pos-0: #1e4325;
+  --heat-pos-0-fg: #b9dfc0;
+  --heat-zero: #4a3f14;
+  --heat-zero-fg: #f2e6b4;
+  --heat-neg-0: #4a2020;
+  --heat-neg-0-fg: #f3c9c9;
+  --heat-neg-1: #6b2626;
+  --heat-neg-1-fg: #ffd9d9;
+  --heat-neg-2: #94302f;
+  --heat-neg-2-fg: #ffe8e8;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-md: 0 4px 14px -4px rgb(0 0 0 / 0.55);
+  --shadow-lg: 0 18px 48px -12px rgb(0 0 0 / 0.7);
+}
+
+/* ---------------------------------------------------------------
+   Ponte tokens -> utilitários Tailwind (bg-surface, text-fg-muted, …)
+   --------------------------------------------------------------- */
+@theme inline {
+  --font-sans: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-overlay: var(--overlay);
+
+  --color-border-base: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-fg-inverse: var(--fg-inverse);
+
+  --color-brand: var(--brand);
+  --color-brand-fg: var(--brand-fg);
+  --color-focus: var(--focus);
+
+  --color-entrada: var(--entrada);
+  --color-entrada-soft: var(--entrada-soft);
+  --color-saida: var(--saida);
+  --color-saida-soft: var(--saida-soft);
+  --color-diario: var(--diario);
+  --color-diario-soft: var(--diario-soft);
+  --color-economia: var(--economia);
+  --color-economia-soft: var(--economia-soft);
+  --color-cartao: var(--cartao);
+  --color-cartao-soft: var(--cartao-soft);
+
+  --shadow-e1: var(--shadow-sm);
+  --shadow-e2: var(--shadow-md);
+  --shadow-e3: var(--shadow-lg);
+}
+
+/* ---------------------------------------------------------------
+   Base
+   --------------------------------------------------------------- */
 @layer base {
-  :root {
-    --background: #ffffff;
-    --foreground: #171717;
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior: none;
+  }
+
+  /* Valores monetários alinham por coluna. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    font: inherit;
+    color: inherit;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
+/* ---------------------------------------------------------------
+   Utilitários
+   --------------------------------------------------------------- */
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 999px;
+  }
+
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ---------------------------------------------------------------
+   Animações
+   --------------------------------------------------------------- */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(120%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.18s ease-out both;
+}
+.animate-pop-in {
+  animation: pop-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-slide-up {
+  animation: slide-up 0.26s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-slide-in-right {
+  animation: slide-in-right 0.26s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-toast-in {
+  animation: toast-in 0.26s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

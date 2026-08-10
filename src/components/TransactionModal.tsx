@@ -1,180 +1,363 @@
 "use client";
 
-import { useState } from "react";
-import { X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Banknote, CalendarDays, ChevronDown, Pencil, Repeat } from "lucide-react";
+import { Modal } from "@/components/ui/Modal";
+import { TypeBadge } from "@/components/ui/TypeBadge";
+import { formatCurrency } from "@/lib/format";
+import { TX_TYPE_META, TX_TYPE_ORDER, type Transaction, type TxType } from "@/lib/types";
+import type { TransactionPayload } from "@/hooks/useFinanceData";
+
+type Frequency = "diario" | "semanal" | "mensal";
+
+const FREQUENCY_LABEL: Record<Frequency, string> = {
+  diario: "todo dia",
+  semanal: "toda semana",
+  mensal: "todo mês",
+};
 
 interface TransactionModalProps {
-    isOpen: boolean;
-    onClose: () => void;
-    onSave: () => void; // Apenas para recarregar a tela após salvar 
+  onClose: () => void;
+  /** Dia pré-selecionado ao criar. */
+  date: string;
+  /** Preenchido quando o modal está em modo edição. */
+  editing: Transaction | null;
+  defaultType?: TxType;
+  submitting: boolean;
+  onSubmit: (payload: TransactionPayload) => void;
 }
 
-export default function TransactionModal({ isOpen, onClose, onSave }: TransactionModalProps) {
-    const [description, setDescription] = useState("");
-    const [amount, setAmount] = useState("");
-    const [category, setCategory] = useState("Diário");
-    const [type, setType] = useState<"entrada" | "saida">("saida");
-    const [isForecast, setIsForecast] = useState(false);
-    const [date, setDate] = useState(new Date().toISOString().split('T')[0]); // Data atual no formato YYYY-MM-DD
-    const [loading, setLoading] = useState(false);
+export function TransactionModal({
+  onClose,
+  date,
+  editing,
+  defaultType = "saida",
+  submitting,
+  onSubmit,
+}: TransactionModalProps) {
+  // Os centavos são guardados como dígitos crus: digitar 2800 vira R$ 28,00.
+  const [amountDigits, setAmountDigits] = useState(() =>
+    editing ? String(Math.round(editing.amount * 100)) : "",
+  );
+  const [type, setType] = useState<TxType>(editing?.type ?? defaultType);
+  const [description, setDescription] = useState(editing?.description ?? "");
+  const [dateValue, setDateValue] = useState(editing?.date ?? date);
+  const [repeats, setRepeats] = useState(false);
+  const [frequency, setFrequency] = useState<Frequency>("mensal");
+  const [count, setCount] = useState("2");
+  const [indeterminate, setIndeterminate] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-    if (!isOpen) return null;
+  const amount = Number(amountDigits || "0") / 100;
+  const meta = TX_TYPE_META[type];
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setLoading(true);
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (submitting) return;
 
-        try {
-            const value = type === "saida" ? -Math.abs(Number(amount)) : Math.abs(Number(amount));
+    if (amount <= 0) return setError("informe um valor maior que zero.");
+    if (!description.trim()) return setError("dê um nome ao lançamento.");
+    if (repeats && !indeterminate && Number(count) < 2) {
+      return setError("a repetição precisa de pelo menos 2 vezes.");
+    }
 
-            await fetch("/api/transactions", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    description,
-                    amount: value,
-                    category,
-                    isForecast,
-                    date: new Date(date).toISOString(),
-                }),
-            });
+    onSubmit({
+      date: dateValue,
+      type,
+      amount,
+      description: description.trim(),
+      repeatFrequency: repeats ? frequency : undefined,
+      repeatCount: repeats && !indeterminate ? Number(count) : undefined,
+      isIndeterminate: repeats && indeterminate,
+    });
+  };
 
-            // Limpar form
-            setDescription("");
-            setAmount("");
-            onSave(); // Trigger pra recarregar dados
-            onClose();
-        } catch (error) {
-            console.error("Erro ao salvar", error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                <div className="flex justify-between items-center p-5 border-b border-neutral-100">
-                    <h2 className="text-xl font-bold text-neutral-800">Nova Transação</h2>
-                    <button
-                        onClick={onClose}
-                        className="p-1 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 rounded-full transition-colors"
-                    >
-                        <X size={20} />
-                    </button>
-                </div>
-
-                <form onSubmit={handleSubmit} className="p-5 space-y-4">
-                    {/* Tipo */}
-                    <div className="flex bg-neutral-100 p-1 rounded-lg">
-                        <button
-                            type="button"
-                            onClick={() => setType("saida")}
-                            className={`flex-1 py-1.5 text-sm font-semibold rounded-md transition-colors ${type === "saida"
-                                    ? "bg-white text-red-600 shadow-sm"
-                                    : "text-neutral-500 hover:text-neutral-700"
-                                }`}
-                        >
-                            Saída
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setType("entrada")}
-                            className={`flex-1 py-1.5 text-sm font-semibold rounded-md transition-colors ${type === "entrada"
-                                    ? "bg-white text-green-600 shadow-sm"
-                                    : "text-neutral-500 hover:text-neutral-700"
-                                }`}
-                        >
-                            Entrada
-                        </button>
-                    </div>
-
-                    <div className="space-y-3">
-                        <div>
-                            <label className="block text-sm font-medium text-neutral-700 mb-1">
-                                Data
-                            </label>
-                            <input
-                                type="date"
-                                required
-                                value={date}
-                                onChange={(e) => setDate(e.target.value)}
-                                className="w-full bg-neutral-50 border border-neutral-300 text-neutral-800 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 outline-none transition-colors"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-neutral-700 mb-1">
-                                Descrição
-                            </label>
-                            <input
-                                type="text"
-                                required
-                                placeholder="Ex: Almoço"
-                                value={description}
-                                onChange={(e) => setDescription(e.target.value)}
-                                className="w-full bg-neutral-50 border border-neutral-300 text-neutral-800 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 outline-none transition-colors"
-                            />
-                        </div>
-
-                        <div className="flex gap-3">
-                            <div className="flex-1">
-                                <label className="block text-sm font-medium text-neutral-700 mb-1">
-                                    Valor (R$)
-                                </label>
-                                <input
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    required
-                                    placeholder="0,00"
-                                    value={amount}
-                                    onChange={(e) => setAmount(e.target.value)}
-                                    className="w-full bg-neutral-50 border border-neutral-300 text-neutral-800 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 outline-none transition-colors"
-                                />
-                            </div>
-
-                            <div className="w-1/3">
-                                <label className="block text-sm font-medium text-neutral-700 mb-1">
-                                    Categoria
-                                </label>
-                                <select
-                                    value={category}
-                                    onChange={(e) => setCategory(e.target.value)}
-                                    className="w-full bg-neutral-50 border border-neutral-300 text-neutral-800 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 outline-none transition-colors"
-                                >
-                                    <option value="Diário">Diário</option>
-                                    <option value="Fixo">Fixo</option>
-                                    <option value="Lazer">Lazer</option>
-                                    <option value="Economias">Economias</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <label className="flex items-center gap-2 mt-2 cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={isForecast}
-                                onChange={(e) => setIsForecast(e.target.checked)}
-                                className="w-4 h-4 text-blue-600 bg-neutral-100 border-neutral-300 rounded focus:ring-blue-500"
-                            />
-                            <span className="text-sm font-medium text-neutral-700">
-                                É uma previsão (planejamento futuro)?
-                            </span>
-                        </label>
-                    </div>
-
-                    <div className="pt-2">
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="w-full text-white bg-blue-600 hover:bg-blue-700 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-3 text-center transition-colors disabled:opacity-70"
-                        >
-                            {loading ? "Salvando..." : "Salvar Transação"}
-                        </button>
-                    </div>
-                </form>
+  return (
+    <Modal onClose={onClose} title={editing ? "editar" : "adicionar"}>
+      <form onSubmit={handleSubmit} className="flex min-h-0 flex-col">
+        <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-6">
+          <Row icon={Banknote}>
+            <div className="flex flex-1 items-center gap-2">
+              <span className="text-xl font-semibold text-fg-muted">R$</span>
+              <input
+                autoFocus
+                inputMode="numeric"
+                value={amount > 0 ? formatCurrency(amount).replace("R$", "").trim() : ""}
+                placeholder="0,00"
+                onChange={(e) => {
+                  const digits = e.target.value.replace(/\D/g, "").slice(0, 11);
+                  setAmountDigits(digits);
+                  setError(null);
+                }}
+                className="w-full bg-transparent text-xl font-semibold tabular outline-none placeholder:text-fg-subtle"
+                aria-label="Valor"
+              />
             </div>
+          </Row>
+
+          <Row icon={() => <TypeBadge type={type} size={20} />}>
+            <TypeSelect value={type} onChange={setType} />
+          </Row>
+
+          <Row icon={Pencil}>
+            <input
+              value={description}
+              onChange={(e) => {
+                setDescription(e.target.value);
+                setError(null);
+              }}
+              placeholder="descrição"
+              className="w-full bg-transparent lowercase outline-none placeholder:text-fg-subtle"
+              aria-label="Descrição"
+            />
+          </Row>
+
+          <Row icon={CalendarDays}>
+            <label className="flex flex-1 cursor-pointer items-center justify-between gap-2">
+              <span className="lowercase text-fg-muted">data</span>
+              <input
+                type="date"
+                value={dateValue}
+                onChange={(e) => setDateValue(e.target.value)}
+                className="cursor-pointer bg-transparent text-right tabular outline-none"
+                required
+              />
+            </label>
+          </Row>
+
+          {!editing && (
+            <Row icon={Repeat} align="start">
+              <div className="flex-1">
+                <RepeatSelect
+                  repeats={repeats}
+                  frequency={frequency}
+                  onChange={(next) => {
+                    setRepeats(next !== null);
+                    if (next) setFrequency(next);
+                  }}
+                />
+
+                {repeats && (
+                  <div className="animate-fade-in mt-3 space-y-3 pb-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm lowercase text-fg-muted">por</span>
+                      <input
+                        type="number"
+                        min={2}
+                        max={360}
+                        value={count}
+                        disabled={indeterminate}
+                        onChange={(e) => setCount(e.target.value)}
+                        className="w-20 rounded-lg border border-border-base bg-surface-2 px-2 py-1.5 text-sm tabular outline-none disabled:opacity-40"
+                      />
+                      <span className="text-sm lowercase text-fg-muted">vezes</span>
+                    </div>
+
+                    <Toggle
+                      checked={indeterminate}
+                      onChange={setIndeterminate}
+                      label="sem prazo definido"
+                    />
+                  </div>
+                )}
+              </div>
+            </Row>
+          )}
+
+          {error && <p className="pt-3 text-sm lowercase text-saida">{error}</p>}
         </div>
-    );
+
+        <div className="shrink-0 p-6 pt-4">
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full rounded-full py-3.5 text-base font-semibold lowercase text-white transition-opacity active:scale-[0.99] disabled:opacity-60"
+            style={{ background: meta.color }}
+          >
+            {submitting
+              ? "salvando..."
+              : editing
+                ? "salvar alterações"
+                : `adicionar ${meta.singular}`}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+
+function Row({
+  icon: Icon,
+  children,
+  align = "center",
+}: {
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  children: React.ReactNode;
+  align?: "center" | "start";
+}) {
+  return (
+    <div
+      className={`flex gap-3.5 border-b border-border-base py-4 ${
+        align === "start" ? "items-start" : "items-center"
+      }`}
+    >
+      <span className={`grid size-5 shrink-0 place-items-center text-fg-subtle ${align === "start" ? "mt-0.5" : ""}`}>
+        <Icon size={20} />
+      </span>
+      {children}
+    </div>
+  );
+}
+
+function TypeSelect({ value, onChange }: { value: TxType; onChange: (type: TxType) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const timer = setTimeout(() => document.addEventListener("pointerdown", onPointerDown), 0);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative flex-1">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between gap-2 text-left lowercase"
+      >
+        {TX_TYPE_META[value].singular}
+        <ChevronDown size={18} className={`text-fg-subtle transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && (
+        <div className="animate-pop-in absolute inset-x-0 top-full z-30 mt-2 overflow-hidden rounded-2xl border border-border-base bg-surface p-1.5 shadow-e3">
+          {TX_TYPE_ORDER.map((type) => (
+            <button
+              key={type}
+              type="button"
+              onClick={() => {
+                onChange(type);
+                setOpen(false);
+              }}
+              className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm lowercase transition-colors ${
+                value === type ? "bg-surface-3 font-medium" : "hover:bg-surface-2"
+              }`}
+            >
+              <TypeBadge type={type} size={18} />
+              {TX_TYPE_META[type].singular}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RepeatSelect({
+  repeats,
+  frequency,
+  onChange,
+}: {
+  repeats: boolean;
+  frequency: Frequency;
+  onChange: (value: Frequency | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const timer = setTimeout(() => document.addEventListener("pointerdown", onPointerDown), 0);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, [open]);
+
+  const options: { value: Frequency | null; label: string }[] = [
+    { value: null, label: "não repete" },
+    { value: "diario", label: FREQUENCY_LABEL.diario },
+    { value: "semanal", label: FREQUENCY_LABEL.semanal },
+    { value: "mensal", label: FREQUENCY_LABEL.mensal },
+  ];
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between gap-2 text-left lowercase"
+      >
+        {repeats ? FREQUENCY_LABEL[frequency] : "não repete"}
+        <ChevronDown size={18} className={`text-fg-subtle transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && (
+        <div className="animate-pop-in absolute inset-x-0 top-full z-30 mt-2 overflow-hidden rounded-2xl border border-border-base bg-surface p-1.5 shadow-e3">
+          {options.map((option) => {
+            const active = option.value === null ? !repeats : repeats && frequency === option.value;
+            return (
+              <button
+                key={option.label}
+                type="button"
+                onClick={() => {
+                  onChange(option.value);
+                  setOpen(false);
+                }}
+                className={`flex w-full items-center rounded-xl px-3 py-2.5 text-sm lowercase transition-colors ${
+                  active ? "bg-surface-3 font-medium" : "hover:bg-surface-2"
+                }`}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function Toggle({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: (value: boolean) => void;
+  label: string;
+}) {
+  return (
+    <label className="flex w-fit cursor-pointer items-center gap-3 text-sm lowercase select-none">
+      <span
+        className="relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors"
+        style={{ background: checked ? "var(--entrada)" : "var(--border-strong)" }}
+      >
+        <span
+          className={`inline-block size-4 rounded-full bg-white shadow transition-transform ${
+            checked ? "translate-x-[1.125rem]" : "translate-x-0.5"
+          }`}
+        />
+      </span>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="sr-only"
+      />
+      <span className="text-fg-muted">{label}</span>
+    </label>
+  );
 }
