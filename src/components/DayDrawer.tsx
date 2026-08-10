@@ -15,11 +15,15 @@ import { dayShortLabel, formatCurrency, formatDayMonth } from "@/lib/format";
 import { TX_TYPE_META, TX_TYPE_ORDER, type Transaction, type TxType } from "@/lib/types";
 import { TypeBadge } from "@/components/ui/TypeBadge";
 
-type Filter = TxType | "todos";
+/** Exportado porque quem abre o drawer decide o filtro inicial. */
+export type DayFilter = TxType | "todos";
 
 interface DayDrawerProps {
   dateStr: string;
   transactions: Transaction[];
+  /** Controlado de fora: clicar numa coluna da tabela já abre filtrado nela. */
+  filter: DayFilter;
+  onFilterChange: (filter: DayFilter) => void;
   onClose: () => void;
   onStepDay: (delta: number) => void;
   onAdd: () => void;
@@ -30,13 +34,14 @@ interface DayDrawerProps {
 export function DayDrawer({
   dateStr,
   transactions,
+  filter,
+  onFilterChange,
   onClose,
   onStepDay,
   onAdd,
   onEdit,
   onDelete,
 }: DayDrawerProps) {
-  const [filter, setFilter] = useState<Filter>("todos");
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -51,10 +56,19 @@ export function DayDrawer({
   const visible =
     filter === "todos" ? transactions : transactions.filter((tx) => tx.type === filter);
 
-  const total = visible.reduce(
-    (sum, tx) => sum + (tx.type === "entrada" ? tx.amount : -tx.amount),
-    0,
-  );
+  // Sem filtro o rodapé mostra o saldo líquido do dia; filtrado, o total daquele
+  // tipo — somar entrada e saída faria o número não bater com a lista visível.
+  const total =
+    filter === "todos"
+      ? visible.reduce((sum, tx) => sum + (tx.type === "entrada" ? tx.amount : -tx.amount), 0)
+      : visible.reduce((sum, tx) => sum + tx.amount, 0);
+
+  const totalColor =
+    filter === "todos"
+      ? total >= 0
+        ? "var(--entrada)"
+        : "var(--saida)"
+      : TX_TYPE_META[filter].color;
 
   return (
     <>
@@ -113,7 +127,7 @@ export function DayDrawer({
         </header>
 
         <div className="shrink-0 px-3 pb-3 md:px-4">
-          <FilterSelect value={filter} onChange={setFilter} />
+          <FilterSelect value={filter} onChange={onFilterChange} />
         </div>
 
         <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
@@ -140,11 +154,10 @@ export function DayDrawer({
             className="flex shrink-0 items-center justify-between border-t border-border-base px-5 py-3.5 text-sm"
             style={{ paddingBottom: "max(0.875rem, env(safe-area-inset-bottom))" }}
           >
-            <span className="lowercase text-fg-muted">saldo do dia</span>
-            <span
-              className="font-semibold tabular"
-              style={{ color: total >= 0 ? "var(--entrada)" : "var(--saida)" }}
-            >
+            <span className="lowercase text-fg-muted">
+              {filter === "todos" ? "saldo do dia" : `total de ${TX_TYPE_META[filter].label}`}
+            </span>
+            <span className="font-semibold tabular" style={{ color: totalColor }}>
               {formatCurrency(total)}
             </span>
           </footer>
@@ -160,8 +173,8 @@ function FilterSelect({
   value,
   onChange,
 }: {
-  value: Filter;
-  onChange: (value: Filter) => void;
+  value: DayFilter;
+  onChange: (value: DayFilter) => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);

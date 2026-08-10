@@ -6,7 +6,7 @@ import { BalancesView } from "@/components/views/BalancesView";
 import { HorizonView } from "@/components/views/HorizonView";
 import { TotalsView } from "@/components/views/TotalsView";
 import { BudgetsView } from "@/components/views/BudgetsView";
-import { DayDrawer } from "@/components/DayDrawer";
+import { DayDrawer, type DayFilter } from "@/components/DayDrawer";
 import { TransactionModal } from "@/components/TransactionModal";
 import { BudgetModal } from "@/components/BudgetModal";
 import { PeriodPicker } from "@/components/PeriodPicker";
@@ -53,6 +53,7 @@ export function FinanceApp() {
   const [scrollToTodayToken, setScrollToTodayToken] = useState(0);
 
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [dayFilter, setDayFilter] = useState<DayFilter>("todos");
 
   const [txModalOpen, setTxModalOpen] = useState(false);
   /** Muda a cada abertura para o formulário remontar limpo. */
@@ -104,6 +105,12 @@ export function FinanceApp() {
   );
 
   /* ---------------- ações ---------------- */
+
+  /** Abre o painel do dia; com `type`, já na coluna que foi clicada. */
+  const openDay = useCallback((dateStr: string, type?: TxType) => {
+    setSelectedDay(dateStr);
+    setDayFilter(type ?? "todos");
+  }, []);
 
   const goToToday = useCallback(() => {
     setWindowStart(todayMonth);
@@ -259,7 +266,7 @@ export function FinanceApp() {
           months={windowMonths}
           mobileType={mobileType}
           onMobileTypeChange={setMobileType}
-          onSelectDay={setSelectedDay}
+          onSelectDay={openDay}
           scrollToTodayToken={scrollToTodayToken}
         />
       )}
@@ -267,13 +274,13 @@ export function FinanceApp() {
       {view === "horizonte" && (
         <HorizonView
           months={windowMonths}
-          onSelectDay={setSelectedDay}
+          onSelectDay={openDay}
           scrollToTodayToken={scrollToTodayToken}
         />
       )}
 
       {view === "totais" && summary && (
-        <TotalsView summary={summary} annual={annual} onSelectDay={setSelectedDay} />
+        <TotalsView summary={summary} annual={annual} onSelectDay={openDay} />
       )}
 
       {view === "orcamentos" && (
@@ -295,6 +302,8 @@ export function FinanceApp() {
         <DayDrawer
           dateStr={selectedDay}
           transactions={dayTransactions}
+          filter={dayFilter}
+          onFilterChange={setDayFilter}
           onClose={() => setSelectedDay(null)}
           onStepDay={stepDay}
           onAdd={() => openCreateModal(selectedDay)}
@@ -309,7 +318,8 @@ export function FinanceApp() {
           onClose={closeTxModal}
           date={txModalDate}
           editing={editingTx}
-          defaultType={mobileType}
+          // Estando o painel filtrado numa coluna, o novo lançamento já nasce nela.
+          defaultType={dayFilter === "todos" ? mobileType : dayFilter}
           submitting={submitting}
           onSubmit={handleSubmitTransaction}
         />

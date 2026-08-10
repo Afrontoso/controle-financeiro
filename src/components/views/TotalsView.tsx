@@ -2,13 +2,13 @@
 
 import { formatCurrency, formatPercent } from "@/lib/format";
 import type { AnnualSavings, MonthSummary } from "@/lib/ledger";
-import { TX_TYPE_META, type Transaction } from "@/lib/types";
+import { TX_TYPE_META, type Transaction, type TxType } from "@/lib/types";
 import { TypeBadge } from "@/components/ui/TypeBadge";
 
 interface TotalsViewProps {
   summary: MonthSummary;
   annual: AnnualSavings;
-  onSelectDay: (dateStr: string) => void;
+  onSelectDay: (dateStr: string, type?: TxType) => void;
 }
 
 export function TotalsView({ summary, annual, onSelectDay }: TotalsViewProps) {
@@ -170,7 +170,7 @@ export function TotalsView({ summary, annual, onSelectDay }: TotalsViewProps) {
           ) : (
             <ul>
               {gastos.map((tx) => (
-                <GastoRow key={tx.id} tx={tx} onClick={() => onSelectDay(tx.date)} />
+                <GastoRow key={tx.id} tx={tx} onClick={() => onSelectDay(tx.date, tx.type)} />
               ))}
             </ul>
           )}

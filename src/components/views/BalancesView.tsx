@@ -12,7 +12,8 @@ interface BalancesViewProps {
   /** No mobile só cabe uma coluna de tipo por vez. */
   mobileType: TxType;
   onMobileTypeChange: (type: TxType) => void;
-  onSelectDay: (dateStr: string) => void;
+  /** Sem `type`, abre o dia com todos os lançamentos; com, já filtrado. */
+  onSelectDay: (dateStr: string, type?: TxType) => void;
   /** Incrementado quando o usuário pede "ir pra hoje". */
   scrollToTodayToken: number;
 }
@@ -124,7 +125,7 @@ interface MonthTableProps {
   month: MonthEntry;
   /** Colunas de valor a renderizar — varia entre mobile e desktop. */
   columns: TxType[];
-  onSelectDay: (dateStr: string) => void;
+  onSelectDay: (dateStr: string, type?: TxType) => void;
   ref?: React.Ref<HTMLElement>;
   todayRowRef: React.Ref<HTMLTableRowElement>;
 }
@@ -206,7 +207,17 @@ function MonthTable({ month, columns, onSelectDay, ref, todayRowRef }: MonthTabl
                 const value = cellValue(day, type);
                 const zero = value === 0;
                 return (
-                  <td key={type} className="border-b border-border-base/60 px-1.5 py-2">
+                  <td
+                    key={type}
+                    // A célula é mais específica que a linha: abre o dia já
+                    // filtrado neste tipo, sem disparar o clique da linha.
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectDay(day.dateStr, type);
+                    }}
+                    title={`${TX_TYPE_META[type].label} · dia ${day.day}`}
+                    className="border-b border-border-base/60 px-1.5 py-2 hover:bg-surface-3"
+                  >
                     <span className={`flex items-center ${cellLayout}`}>
                       <TypeBadge type={type} size={16} muted={zero} />
                       <span
