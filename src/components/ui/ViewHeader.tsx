@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronLeft } from "lucide-react";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 interface ViewHeaderProps {
   title: string;
@@ -11,8 +12,8 @@ interface ViewHeaderProps {
 
 export function ViewHeader({ title, onBack, children }: ViewHeaderProps) {
   return (
-    <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border-base bg-surface px-4 py-3 md:px-6 md:py-4">
-      <div className="flex min-w-0 items-center gap-1.5">
+    <header className="flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-border-base bg-surface px-4 py-3 md:px-6 md:py-4">
+      <div className="flex min-w-0 flex-1 items-center gap-1.5 md:flex-none">
         {onBack && (
           <button
             type="button"
@@ -26,8 +27,16 @@ export function ViewHeader({ title, onBack, children }: ViewHeaderProps) {
         <h1 className="truncate text-xl font-semibold lowercase tracking-tight md:text-2xl">
           {title}
         </h1>
+
+        {/* No celular o seletor de período ocupa a linha inteira embaixo, então
+            o tema fica aqui em cima, ao lado do título. */}
+        <ThemeToggle className="-mr-2 ml-auto md:hidden" />
       </div>
-      {children && <div className="flex items-center gap-2">{children}</div>}
+
+      <div className="flex items-center gap-2">
+        {children}
+        <ThemeToggle className="hidden md:grid" />
+      </div>
     </header>
   );
 }

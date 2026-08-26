@@ -23,6 +23,7 @@ import {
   indexCards,
   shiftMonth,
   summarizeMonth,
+  summarizeSavings,
   summarizeYear,
   type MonthEntry,
   type YearMonth,
@@ -111,6 +112,8 @@ export function FinanceApp() {
     () => summarizeYear(transactions, totalsMonth.year),
     [transactions, totalsMonth.year],
   );
+
+  const savings = useMemo(() => summarizeSavings(transactions, today), [transactions, today]);
 
   const cardIndex = useMemo(() => indexCards(cards), [cards]);
 
@@ -337,7 +340,7 @@ export function FinanceApp() {
       )}
 
       {view === "totais" && summary && (
-        <TotalsView summary={summary} annual={annual} onSelectDay={openDay} />
+        <TotalsView summary={summary} annual={annual} savings={savings} onSelectDay={openDay} />
       )}
 
       {view === "orcamentos" && (

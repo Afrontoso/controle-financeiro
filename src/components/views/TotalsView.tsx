@@ -1,17 +1,19 @@
 "use client";
 
 import { formatCurrency, formatPercent } from "@/lib/format";
-import type { AnnualSavings, GastoEntry, MonthSummary } from "@/lib/ledger";
+import type { AnnualSavings, GastoEntry, MonthSummary, SavingsTotal } from "@/lib/ledger";
 import { TX_TYPE_META, type TxType } from "@/lib/types";
 import { TypeBadge } from "@/components/ui/TypeBadge";
 
 interface TotalsViewProps {
   summary: MonthSummary;
   annual: AnnualSavings;
+  /** Acumulado de todos os anos, não só do ano em tela. */
+  savings: SavingsTotal;
   onSelectDay: (dateStr: string, type?: TxType) => void;
 }
 
-export function TotalsView({ summary, annual, onSelectDay }: TotalsViewProps) {
+export function TotalsView({ summary, annual, savings, onSelectDay }: TotalsViewProps) {
   const {
     totals,
     totalGastos,
@@ -151,6 +153,26 @@ export function TotalsView({ summary, annual, onSelectDay }: TotalsViewProps) {
               <p className="py-6 text-center text-sm text-fg-subtle lowercase">
                 nenhum lançamento em {annual.year}.
               </p>
+            )}
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-t border-border-base pt-4">
+            <span className="text-sm lowercase text-fg-muted">
+              total guardado
+              {savings.primeiroAno !== null && savings.primeiroAno !== annual.year && (
+                <span className="text-fg-subtle"> · desde {savings.primeiroAno}</span>
+              )}
+            </span>
+            <span
+              className="text-lg font-bold tabular"
+              style={{ color: "var(--economia)" }}
+            >
+              {formatCurrency(savings.guardado)}
+            </span>
+            {savings.previsto > 0 && (
+              <span className="w-full text-xs lowercase text-fg-subtle">
+                mais {formatCurrency(savings.previsto)} já lançados para os próximos meses
+              </span>
             )}
           </div>
         </section>

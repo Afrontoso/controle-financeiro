@@ -330,6 +330,41 @@ export function summarizeMonth(
   };
 }
 
+export interface SavingsTotal {
+  /** Tudo que já foi guardado até hoje, somando todos os anos. */
+  guardado: number;
+  /** Economias já lançadas para datas futuras (recorrências, por exemplo). */
+  previsto: number;
+  /** Ano da primeira economia, para datar o acumulado. */
+  primeiroAno: number | null;
+}
+
+/**
+ * Acumulado de economias de todos os anos.
+ *
+ * O que já passou e o que ainda vai acontecer vão separados de propósito: uma
+ * recorrência sem prazo lança parcelas por anos à frente, e somá-las ao
+ * guardado faria o app dizer que você tem um dinheiro que ainda não guardou.
+ */
+export function summarizeSavings(transactions: Transaction[], today: Date): SavingsTotal {
+  const todayStr = toDateStr(today);
+  let guardado = 0;
+  let previsto = 0;
+  let primeiroAno: number | null = null;
+
+  for (const tx of transactions) {
+    if (tx.type !== "investimento") continue;
+
+    if (tx.date <= todayStr) guardado += tx.amount;
+    else previsto += tx.amount;
+
+    const year = Number(tx.date.slice(0, 4));
+    if (tx.date <= todayStr && (primeiroAno === null || year < primeiroAno)) primeiroAno = year;
+  }
+
+  return { guardado, previsto, primeiroAno };
+}
+
 export interface AnnualSavings {
   year: number;
   totalEntradas: number;
