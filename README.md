@@ -115,7 +115,7 @@ O app segue o tema do sistema e pode ser trocado na tela de **menu**. A escolha 
 
 - **Framework**: [Next.js 16](https://nextjs.org/) (App Router, Turbopack)
 - **Linguagem**: TypeScript
-- **Banco**: PostgreSQL ([Neon](https://neon.tech/)) via [Prisma 7](https://www.prisma.io/)
+- **Banco**: PostgreSQL ([Neon](https://neon.tech/)) via [Prisma 7](https://www.prisma.io/) com o driver serverless (WebSocket, porta 443)
 - **Autenticação**: [NextAuth.js](https://next-auth.js.org/) com Google OAuth
 - **Estilo**: [Tailwind CSS 4](https://tailwindcss.com/) sobre tokens em CSS variables
 - **Ícones**: [Lucide](https://lucide.dev/) · **Fonte**: [Outfit](https://fonts.google.com/specimen/Outfit)
@@ -149,7 +149,7 @@ src/
 
 Todo saldo exibido vem de `buildLedger()` em [`src/lib/ledger.ts`](src/lib/ledger.ts) — uma função pura que percorre dia a dia e acumula o saldo. **Não recalcule saldo dentro de componente**: saldos e horizonte precisam concordar entre si.
 
-Duas regras que precisam ser preservadas:
+Três regras que precisam ser preservadas:
 
 1. A simulação **sempre parte do mês mais antigo** entre a primeira transação, hoje e o início da janela pedida. Como o saldo é acumulado desde zero, começar depois disso dá um saldo inicial errado.
 2. A cota diária dos orçamentos só é descontada **de hoje em diante** (`drain = 0` no passado), onde valem os lançamentos reais.
@@ -192,6 +192,8 @@ As quatro últimas são opcionais: sem elas o app roda igual, só que "mandar su
 npx prisma migrate dev    # cria o schema
 npm run dev               # http://localhost:3000
 ```
+
+O app fala com o Neon pelo **driver serverless** (`@prisma/adapter-neon`), que usa WebSocket na porta 443 — funciona em redes que bloqueiam a 5432 e dispensa segurar um pool TCP entre invocações. Exige Node 22 ou mais recente, que traz o `WebSocket` global. O CLI do Prisma (`migrate`, `studio`) continua indo pela 5432: se a sua rede bloquear essa porta, rode as migrações de outra rede.
 
 Verificações antes de abrir PR:
 

@@ -21,8 +21,9 @@ import { useToast } from "@/components/ui/Toast";
 import { SuggestionModal } from "@/components/SuggestionModal";
 import { DonateModal } from "@/components/DonateModal";
 
-/** Definida no build; sem chave configurada a opção de apoio nem aparece. */
+/** Definidas no build; sem nenhuma das duas a opção de apoio nem aparece. */
 const PIX_KEY = process.env.NEXT_PUBLIC_PIX_KEY ?? "";
+const PIX_PAYLOAD = process.env.NEXT_PUBLIC_PIX_PAYLOAD ?? "";
 
 interface MenuViewProps {
   onOpenCards: () => void;
@@ -112,7 +113,7 @@ export function MenuView({ onOpenCards, onGoToday }: MenuViewProps) {
 
           <MenuRow icon={Share2} label="compartilhar aplicação" onClick={() => void share()} />
 
-          {PIX_KEY && (
+          {(PIX_PAYLOAD || PIX_KEY) && (
             <MenuRow
               icon={HeartHandshake}
               label="apoiar com uma doação"
@@ -151,7 +152,13 @@ export function MenuView({ onOpenCards, onGoToday }: MenuViewProps) {
       </div>
 
       {suggestionOpen && <SuggestionModal onClose={() => setSuggestionOpen(false)} />}
-      {donateOpen && <DonateModal pixKey={PIX_KEY} onClose={() => setDonateOpen(false)} />}
+      {donateOpen && (
+        <DonateModal
+          pixKey={PIX_KEY}
+          pixPayload={PIX_PAYLOAD}
+          onClose={() => setDonateOpen(false)}
+        />
+      )}
     </div>
   );
 }
