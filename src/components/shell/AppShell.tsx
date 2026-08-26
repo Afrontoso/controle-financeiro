@@ -1,27 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { signOut, useSession } from "next-auth/react";
+import { useState } from "react";
 import {
-  Bug,
   CalendarDays,
   ChevronLeft,
-  Github,
   LayoutGrid,
-  LogOut,
-  Mail,
   Menu,
-  Moon,
   Plus,
   Sigma,
-  Sun,
   Target,
   Wallet,
 } from "lucide-react";
-import { useTheme } from "@/components/ThemeProvider";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
 
-export type ViewKey = "saldos" | "totais" | "horizonte" | "orcamentos";
+/** "cartoes" não fica na navegação: abre a partir do menu. */
+export type ViewKey = "saldos" | "totais" | "horizonte" | "orcamentos" | "cartoes" | "menu";
 
 interface NavItem {
   key: ViewKey;
@@ -46,10 +38,6 @@ interface AppShellProps {
 
 export function AppShell({ view, onViewChange, onAdd, onGoToday, children }: AppShellProps) {
   const [collapsed, setCollapsed] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  // Sidebar e barra inferior coexistem no DOM (uma escondida por CSS). O menu de
-  // conta ouve cliques no documento, então só pode existir um por vez.
-  const isDesktop = useMediaQuery("(min-width: 768px)");
 
   return (
     <div className="flex h-[100dvh] w-full overflow-hidden bg-bg text-fg">
@@ -60,24 +48,13 @@ export function AppShell({ view, onViewChange, onAdd, onGoToday, children }: App
         onGoToday={onGoToday}
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed((c) => !c)}
-        menuOpen={menuOpen && isDesktop}
-        onToggleMenu={() => setMenuOpen((m) => !m)}
-        onCloseMenu={() => setMenuOpen(false)}
       />
 
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden pb-[4.5rem] md:pb-0">
         {children}
       </main>
 
-      <MobileTabBar
-        view={view}
-        onViewChange={onViewChange}
-        onAdd={onAdd}
-        menuOpen={menuOpen && !isDesktop}
-        onToggleMenu={() => setMenuOpen((m) => !m)}
-        onCloseMenu={() => setMenuOpen(false)}
-        onGoToday={onGoToday}
-      />
+      <MobileTabBar view={view} onViewChange={onViewChange} onAdd={onAdd} />
     </div>
   );
 }
@@ -91,9 +68,6 @@ interface SidebarProps {
   onGoToday: () => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
-  menuOpen: boolean;
-  onToggleMenu: () => void;
-  onCloseMenu: () => void;
 }
 
 function DesktopSidebar({
@@ -103,9 +77,6 @@ function DesktopSidebar({
   onGoToday,
   collapsed,
   onToggleCollapse,
-  menuOpen,
-  onToggleMenu,
-  onCloseMenu,
 }: SidebarProps) {
   const today = new Date().getDate();
 
@@ -152,8 +123,13 @@ function DesktopSidebar({
       </div>
 
       <div className="relative mt-auto flex flex-col gap-1 px-3 pb-3">
-        {menuOpen && <AccountMenu onClose={onCloseMenu} placement="sidebar" />}
-        <SidebarButton icon={Menu} label="menu" collapsed={collapsed} onClick={onToggleMenu} />
+        <SidebarButton
+          icon={Menu}
+          label="menu"
+          collapsed={collapsed}
+          active={view === "menu" || view === "cartoes"}
+          onClick={() => onViewChange("menu")}
+        />
         <button
           type="button"
           onClick={onToggleCollapse}
@@ -217,74 +193,61 @@ interface TabBarProps {
   view: ViewKey;
   onViewChange: (view: ViewKey) => void;
   onAdd: () => void;
-  onGoToday: () => void;
-  menuOpen: boolean;
-  onToggleMenu: () => void;
-  onCloseMenu: () => void;
 }
 
-function MobileTabBar({
-  view,
-  onViewChange,
-  onAdd,
-  onGoToday,
-  menuOpen,
-  onToggleMenu,
-  onCloseMenu,
-}: TabBarProps) {
+function MobileTabBar({ view, onViewChange, onAdd }: TabBarProps) {
   const left = NAV_ITEMS.slice(0, 2);
   const right = NAV_ITEMS.slice(2);
+  // Cartões nasce do menu, então mantém a aba do menu acesa enquanto está aberta.
+  const menuActive = view === "menu" || view === "cartoes";
 
   return (
-    <>
-      {menuOpen && <AccountMenu onClose={onCloseMenu} placement="mobile" onGoToday={onGoToday} />}
+    <nav
+      className="fixed inset-x-0 bottom-0 z-[120] flex items-stretch border-t border-border-base bg-surface md:hidden"
+      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+    >
+      {left.map((item) => (
+        <TabButton
+          key={item.key}
+          item={item}
+          active={view === item.key}
+          onClick={() => onViewChange(item.key)}
+        />
+      ))}
 
-      <nav
-        className="fixed inset-x-0 bottom-0 z-[120] flex items-stretch border-t border-border-base bg-surface md:hidden"
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-      >
-        {left.map((item) => (
-          <TabButton
-            key={item.key}
-            item={item}
-            active={view === item.key}
-            onClick={() => onViewChange(item.key)}
-          />
-        ))}
-
-        <div className="relative flex w-16 shrink-0 justify-center">
-          <button
-            type="button"
-            onClick={onAdd}
-            aria-label="adicionar lançamento"
-            className="absolute -top-5 grid size-14 place-items-center rounded-full text-white shadow-e2 transition-transform active:scale-95"
-            style={{ background: "var(--entrada)" }}
-          >
-            <Plus size={26} strokeWidth={2.6} />
-          </button>
-        </div>
-
-        {right.map((item) => (
-          <TabButton
-            key={item.key}
-            item={item}
-            active={view === item.key}
-            onClick={() => onViewChange(item.key)}
-          />
-        ))}
-
+      <div className="relative flex w-16 shrink-0 justify-center">
         <button
           type="button"
-          onClick={onToggleMenu}
-          className={`flex flex-1 flex-col items-center gap-1 py-2.5 text-[10px] lowercase transition-colors ${
-            menuOpen ? "text-fg" : "text-fg-subtle"
-          }`}
+          onClick={onAdd}
+          aria-label="adicionar lançamento"
+          className="absolute -top-5 grid size-14 place-items-center rounded-full text-white shadow-e2 transition-transform active:scale-95"
+          style={{ background: "var(--entrada)" }}
         >
-          <Menu size={20} strokeWidth={menuOpen ? 2.4 : 2} />
-          menu
+          <Plus size={26} strokeWidth={2.6} />
         </button>
-      </nav>
-    </>
+      </div>
+
+      {right.map((item) => (
+        <TabButton
+          key={item.key}
+          item={item}
+          active={view === item.key}
+          onClick={() => onViewChange(item.key)}
+        />
+      ))}
+
+      <button
+        type="button"
+        onClick={() => onViewChange("menu")}
+        aria-current={menuActive ? "page" : undefined}
+        className={`flex flex-1 flex-col items-center gap-1 py-2.5 text-[10px] lowercase transition-colors ${
+          menuActive ? "text-fg" : "text-fg-subtle"
+        }`}
+      >
+        <Menu size={20} strokeWidth={menuActive ? 2.4 : 2} />
+        menu
+      </button>
+    </nav>
   );
 }
 
@@ -309,139 +272,6 @@ function TabButton({
     >
       <Icon size={20} strokeWidth={active ? 2.4 : 2} />
       <span className="truncate px-1">{item.label}</span>
-    </button>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-
-function AccountMenu({
-  onClose,
-  placement,
-  onGoToday,
-}: {
-  onClose: () => void;
-  placement: "sidebar" | "mobile";
-  onGoToday?: () => void;
-}) {
-  const { theme, toggleTheme } = useTheme();
-  const { data: session } = useSession();
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const onPointerDown = (e: PointerEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    // O clique que abriu o menu ainda está propagando; espera o próximo tick.
-    const timer = setTimeout(() => document.addEventListener("pointerdown", onPointerDown), 0);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [onClose]);
-
-  return (
-    <>
-      {placement === "mobile" && (
-        <div className="animate-fade-in fixed inset-0 z-[115] md:hidden" style={{ background: "var(--overlay)" }} />
-      )}
-      <div
-        ref={ref}
-        className={
-          placement === "sidebar"
-            ? "animate-pop-in absolute bottom-full left-3 z-50 mb-2 w-60 overflow-hidden rounded-2xl border border-border-base bg-surface shadow-e3"
-            : "animate-slide-up fixed inset-x-0 bottom-[4.5rem] z-[125] mx-3 overflow-hidden rounded-2xl border border-border-base bg-surface shadow-e3 md:hidden"
-        }
-      >
-        <div className="flex items-center gap-3 border-b border-border-base px-4 py-3">
-          {session?.user?.image ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={session.user.image} alt="" className="size-9 shrink-0 rounded-full" />
-          ) : (
-            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-surface-3 text-sm font-semibold">
-              {session?.user?.name?.charAt(0) ?? "?"}
-            </span>
-          )}
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{session?.user?.name ?? "conta"}</p>
-            <p className="truncate text-xs text-fg-muted">{session?.user?.email}</p>
-          </div>
-        </div>
-
-        <div className="p-1.5">
-          {onGoToday && (
-            <MenuRow
-              icon={CalendarDays}
-              label="ir pra hoje"
-              onClick={() => {
-                onGoToday();
-                onClose();
-              }}
-            />
-          )}
-          <MenuRow
-            icon={theme === "dark" ? Sun : Moon}
-            label={theme === "dark" ? "tema claro" : "tema escuro"}
-            onClick={toggleTheme}
-          />
-          <MenuRow icon={LogOut} label="sair" onClick={() => signOut()} danger />
-        </div>
-
-        <div className="flex items-center justify-between border-t border-border-base px-4 py-2.5 text-xs text-fg-subtle">
-          <span className="lowercase">victor assis</span>
-          <span className="flex items-center gap-3">
-            <a href="mailto:victor2lra@gmail.com" title="E-mail" className="hover:text-fg">
-              <Mail size={15} />
-            </a>
-            <a
-              href="https://github.com/Afrontoso"
-              target="_blank"
-              rel="noopener noreferrer"
-              title="GitHub"
-              className="hover:text-fg"
-            >
-              <Github size={15} />
-            </a>
-            <a
-              href="mailto:victor2lra@gmail.com?subject=Bug%20no%20controle%20financeiro"
-              title="Reportar bug"
-              className="hover:text-fg"
-            >
-              <Bug size={15} />
-            </a>
-          </span>
-        </div>
-      </div>
-    </>
-  );
-}
-
-function MenuRow({
-  icon: Icon,
-  label,
-  onClick,
-  danger,
-}: {
-  icon: typeof Wallet;
-  label: string;
-  onClick: () => void;
-  danger?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm lowercase transition-colors hover:bg-surface-2 ${
-        danger ? "text-saida" : "text-fg-muted hover:text-fg"
-      }`}
-    >
-      <Icon size={17} />
-      {label}
     </button>
   );
 }

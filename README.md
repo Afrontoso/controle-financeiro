@@ -24,7 +24,7 @@ Um orçamento de `R$ 1.200` dividido por `30` reserva `R$ 40` por dia. É isso q
 
 No passado essa cota **não** é aplicada — lá vale o que você realmente lançou.
 
-### As quatro telas
+### As telas
 
 #### 📊 saldos
 
@@ -46,13 +46,17 @@ Vários meses em colunas estreitas, só dia e saldo. É a visão para responder 
 
 Fechamento do mês escolhido: performance (entradas − gastos − economias), custo de vida, quanto do orçamento já foi usado, projeção de fechamento no ritmo atual, evolução das economias no ano e a lista de todos os gastos.
 
-#### 🎯 orçamentos e cartões
+#### 🎯 orçamentos
 
 ![Tela de orçamentos](docs/screenshots/orcamentos.png)
 
 Cadastro das contas recorrentes que alimentam a cota diária. O card do topo mostra o total mensal e quanto isso representa por dia.
 
-Na mesma tela ficam os **cartões**: nome e dia do vencimento. Um gasto lançado como cartão não sai do saldo no dia da compra — ele espera o primeiro vencimento igual ou posterior a ela, então uma compra do dia 20 num cartão que vence dia 10 só pesa no saldo no dia 10 do mês seguinte, junto com o resto da fatura.
+#### ☰ menu
+
+Conta, tema, **cartões de crédito**, sugestões, compartilhar e apoiar o app. Cartões abre como uma tela própria a partir dali.
+
+Cada cartão tem nome e dia do vencimento. Um gasto lançado como cartão não sai do saldo no dia da compra — ele espera o primeiro vencimento igual ou posterior a ela, então uma compra do dia 20 num cartão que vence dia 10 só pesa no saldo no dia 10 do mês seguinte, junto com o resto da fatura.
 
 ### Lançando algo
 
@@ -92,7 +96,7 @@ As cinco colunas de valor não cabem numa tela de celular, então você escolhe 
 
 ![Tema escuro](docs/screenshots/tema-escuro.png)
 
-O app segue o tema do sistema e pode ser trocado no **menu** (canto inferior da barra lateral). A escolha fica salva no navegador.
+O app segue o tema do sistema e pode ser trocado na tela de **menu**. A escolha fica salva no navegador.
 
 ### Atalhos
 
@@ -125,10 +129,10 @@ src/
 │  ├─ entrar/               tela de login
 │  ├─ layout.tsx            fonte, metadata e script anti-flash do tema
 │  ├─ globals.css           tokens de design (claro/escuro) e animações
-│  └─ api/                  rotas de transactions, budgets e cards
+│  └─ api/                  rotas de transactions, budgets, cards e suggestions
 ├─ components/
 │  ├─ FinanceApp.tsx        orquestra estado, telas e modais
-│  ├─ views/                saldos, horizonte, totais, orçamentos e cartões
+│  ├─ views/                saldos, horizonte, totais, orçamentos, cartões e menu
 │  ├─ shell/AppShell.tsx    sidebar (desktop) e barra inferior (mobile)
 │  ├─ landing/              página de apresentação
 │  └─ ui/                   Modal, Select, ConfirmDialog, Toast, TypeBadge, ViewHeader
@@ -175,7 +179,14 @@ NEXTAUTH_SECRET="..."            # openssl rand -base64 32
 NEXTAUTH_URL="http://localhost:3000"
 GOOGLE_CLIENT_ID="..."           # console.cloud.google.com > Credenciais
 GOOGLE_CLIENT_SECRET="..."
+
+RESEND_API_KEY="re_..."          # resend.com > API Keys (sugestões do menu)
+SUGGESTIONS_EMAIL="voce@..."     # para onde as sugestões são enviadas
+SUGGESTIONS_FROM="onboarding@resend.dev"   # só troque com domínio verificado
+NEXT_PUBLIC_PIX_KEY=""           # chave pix da doação; vazio esconde a opção
 ```
+
+As quatro últimas são opcionais: sem elas o app roda igual, só que "mandar sugestões" responde erro e a opção de doação não aparece no menu. `NEXT_PUBLIC_PIX_KEY` vai embutida no bundle do cliente — use uma chave que possa ser pública.
 
 ```bash
 npx prisma migrate dev    # cria o schema

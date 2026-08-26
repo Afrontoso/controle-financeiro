@@ -5,7 +5,9 @@ import { AppShell, type ViewKey } from "@/components/shell/AppShell";
 import { BalancesView } from "@/components/views/BalancesView";
 import { HorizonView } from "@/components/views/HorizonView";
 import { TotalsView } from "@/components/views/TotalsView";
-import { PlanningView } from "@/components/views/PlanningView";
+import { BudgetsView } from "@/components/views/BudgetsView";
+import { CardsView } from "@/components/views/CardsView";
+import { MenuView } from "@/components/views/MenuView";
 import { DayDrawer, type DayFilter } from "@/components/DayDrawer";
 import { TransactionModal } from "@/components/TransactionModal";
 import { BudgetModal } from "@/components/BudgetModal";
@@ -35,7 +37,9 @@ const VIEW_TITLES: Record<ViewKey, string> = {
   saldos: "saldos",
   totais: "totais",
   horizonte: "horizonte de saldos",
-  orcamentos: "orçamentos e cartões",
+  orcamentos: "orçamentos",
+  cartoes: "cartões de crédito",
+  menu: "menu",
 };
 
 export function FinanceApp() {
@@ -302,7 +306,11 @@ export function FinanceApp() {
       onAdd={() => openCreateModal()}
       onGoToday={goToToday}
     >
-      <ViewHeader title={VIEW_TITLES[view]}>
+      <ViewHeader
+        title={VIEW_TITLES[view]}
+        // Cartões é uma tela filha do menu: precisa de caminho de volta.
+        onBack={view === "cartoes" ? () => setView("menu") : undefined}
+      >
         {view === "saldos" || view === "horizonte" ? (
           <PeriodPicker start={windowStart} span={WINDOW_SPAN} onChange={setWindowStart} />
         ) : view === "totais" ? (
@@ -333,27 +341,43 @@ export function FinanceApp() {
       )}
 
       {view === "orcamentos" && (
-        <PlanningView
+        <BudgetsView
           budgets={budgets}
-          cards={cards}
-          onCreateBudget={() => {
+          onCreate={() => {
             setEditingBudget(null);
             setBudgetModalOpen(true);
           }}
-          onEditBudget={(budget) => {
+          onEdit={(budget) => {
             setEditingBudget(budget);
             setBudgetModalOpen(true);
           }}
-          onDeleteBudget={setDeletingBudget}
-          onCreateCard={() => {
+          onDelete={setDeletingBudget}
+        />
+      )}
+
+      {view === "cartoes" && (
+        <CardsView
+          cards={cards}
+          onCreate={() => {
             setEditingCard(null);
             setCardModalOpen(true);
           }}
-          onEditCard={(card) => {
+          onEdit={(card) => {
             setEditingCard(card);
             setCardModalOpen(true);
           }}
-          onDeleteCard={setDeletingCard}
+          onDelete={setDeletingCard}
+        />
+      )}
+
+      {view === "menu" && (
+        <MenuView
+          onOpenCards={() => setView("cartoes")}
+          // "ir pra hoje" a partir do menu só faz sentido de volta na tabela.
+          onGoToday={() => {
+            setView("saldos");
+            goToToday();
+          }}
         />
       )}
 
