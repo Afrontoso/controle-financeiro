@@ -37,8 +37,15 @@ export async function POST(request: Request) {
 
         const data = await request.json();
 
-        const { date, description, amount, isForecast, category, type, repeatCount, repeatFrequency, isIndeterminate } = data;
+        const { date, description, amount, isForecast, category, type, cardId, repeatCount, repeatFrequency, isIndeterminate } = data;
         const baseDate = new Date(date);
+
+        // Só vincula um cartão que seja do próprio usuário.
+        let linkedCardId: string | null = null;
+        if (cardId) {
+            const card = await prisma.card.findFirst({ where: { id: cardId, userId }, select: { id: true } });
+            linkedCardId = card?.id ?? null;
+        }
 
         // Handle repetition
         let finalRepeatCount = repeatCount ? Number(repeatCount) : 0;
@@ -62,6 +69,7 @@ export async function POST(request: Request) {
             isForecast: Boolean(isForecast),
             category: category,
             groupId: groupId,
+            cardId: linkedCardId,
             userId: userId
         }];
 
@@ -85,6 +93,7 @@ export async function POST(request: Request) {
                     isForecast: Boolean(isForecast),
                     category: category,
                     groupId: groupId,
+                    cardId: linkedCardId,
                     userId: userId
                 });
             }

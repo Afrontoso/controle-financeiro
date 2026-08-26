@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { Budget, Transaction, TxType } from "@/lib/types";
+import type { Budget, Card, Transaction, TxType } from "@/lib/types";
 import { isTxType } from "@/lib/types";
 
 interface RawTransaction {
@@ -12,6 +12,7 @@ interface RawTransaction {
   type?: string | null;
   category?: string | null;
   groupId?: string | null;
+  cardId?: string | null;
 }
 
 /**
@@ -44,6 +45,7 @@ function normalizeTransaction(raw: RawTransaction): Transaction {
     type,
     category: raw.category ?? undefined,
     groupId: raw.groupId ?? undefined,
+    cardId: raw.cardId ?? undefined,
   };
 }
 
@@ -71,11 +73,25 @@ async function loadBudgets(): Promise<Budget[]> {
   }
 }
 
+async function loadCards(): Promise<Card[]> {
+  try {
+    const res = await fetch("/api/cards");
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.error("Erro ao carregar cartões", error);
+    return [];
+  }
+}
+
 export interface TransactionPayload {
   date: string;
   type: TxType;
   amount: number;
   description: string;
+  /** null limpa o cartão do lançamento; undefined mantém o que já estava. */
+  cardId?: string | null;
   repeatFrequency?: "diario" | "semanal" | "mensal";
   repeatCount?: number;
   isIndeterminate?: boolean;
@@ -92,22 +108,30 @@ function buildBody(payload: TransactionPayload) {
     date: new Date(`${payload.date}T12:00:00`).toISOString(),
     type: payload.type,
     category: payload.type,
+    // Fora do cartão o vínculo não faz sentido e é sempre desfeito.
+    cardId: payload.type === "cartao" ? (payload.cardId ?? null) : null,
   };
 }
 
 export function useFinanceData() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [cards, setCards] = useState<Card[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
 
     void (async () => {
-      const [txs, bgs] = await Promise.all([loadTransactions(), loadBudgets()]);
+      const [txs, bgs, cds] = await Promise.all([
+        loadTransactions(),
+        loadBudgets(),
+        loadCards(),
+      ]);
       if (cancelled) return;
       setTransactions(txs);
       setBudgets(bgs);
+      setCards(cds);
       setLoading(false);
     })();
 
@@ -122,6 +146,10 @@ export function useFinanceData() {
 
   const refreshBudgets = useCallback(async () => {
     setBudgets(await loadBudgets());
+  }, []);
+
+  const refreshCards = useCallback(async () => {
+    setCards(await loadCards());
   }, []);
 
   const createTransaction = useCallback(
@@ -197,14 +225,50 @@ export function useFinanceData() {
     [refreshBudgets],
   );
 
+  const saveCard = useCallback(
+    async (card: { id?: string | null; name: string; dueDay: number }) => {
+      const body = { name: card.name, dueDay: card.dueDay };
+      const res = card.id
+        ? await fetch(`/api/cards/${card.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          })
+        : await fetch("/api/cards", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+      if (!res.ok) throw new Error("Falha ao salvar cartão");
+      await refreshCards();
+      // Mudar o vencimento reposiciona as faturas já lançadas.
+      await refreshTransactions();
+    },
+    [refreshCards, refreshTransactions],
+  );
+
+  const deleteCard = useCallback(
+    async (id: string) => {
+      const res = await fetch(`/api/cards/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Falha ao excluir cartão");
+      await refreshCards();
+      // Os lançamentos ficam sem cartão e voltam a sair no dia da compra.
+      await refreshTransactions();
+    },
+    [refreshCards, refreshTransactions],
+  );
+
   return {
     transactions,
     budgets,
+    cards,
     loading,
     createTransaction,
     updateTransaction,
     deleteTransaction,
     saveBudget,
     deleteBudget,
+    saveCard,
+    deleteCard,
   };
 }

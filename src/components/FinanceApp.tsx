@@ -5,10 +5,11 @@ import { AppShell, type ViewKey } from "@/components/shell/AppShell";
 import { BalancesView } from "@/components/views/BalancesView";
 import { HorizonView } from "@/components/views/HorizonView";
 import { TotalsView } from "@/components/views/TotalsView";
-import { BudgetsView } from "@/components/views/BudgetsView";
+import { PlanningView } from "@/components/views/PlanningView";
 import { DayDrawer, type DayFilter } from "@/components/DayDrawer";
 import { TransactionModal } from "@/components/TransactionModal";
 import { BudgetModal } from "@/components/BudgetModal";
+import { CardModal } from "@/components/CardModal";
 import { PeriodPicker } from "@/components/PeriodPicker";
 import { ViewHeader } from "@/components/ui/ViewHeader";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -16,6 +17,8 @@ import { useToast } from "@/components/ui/Toast";
 import { useFinanceData, type TransactionPayload } from "@/hooks/useFinanceData";
 import {
   buildLedger,
+  chargeDateOf,
+  indexCards,
   shiftMonth,
   summarizeMonth,
   summarizeYear,
@@ -23,7 +26,7 @@ import {
   type YearMonth,
 } from "@/lib/ledger";
 import { fromDateStr, toDateStr } from "@/lib/format";
-import type { Budget, Transaction, TxType } from "@/lib/types";
+import type { Budget, Card, Transaction, TxType } from "@/lib/types";
 
 /** Meses exibidos de uma vez em saldos e horizonte. */
 const WINDOW_SPAN = 12;
@@ -32,13 +35,13 @@ const VIEW_TITLES: Record<ViewKey, string> = {
   saldos: "saldos",
   totais: "totais",
   horizonte: "horizonte de saldos",
-  orcamentos: "orçamentos",
+  orcamentos: "orçamentos e cartões",
 };
 
 export function FinanceApp() {
   const showToast = useToast();
   const finance = useFinanceData();
-  const { transactions, budgets, loading } = finance;
+  const { transactions, budgets, cards, loading } = finance;
 
   const [today] = useState(() => new Date());
   const todayMonth = useMemo<YearMonth>(
@@ -67,6 +70,10 @@ export function FinanceApp() {
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
   const [deletingBudget, setDeletingBudget] = useState<Budget | null>(null);
 
+  const [cardModalOpen, setCardModalOpen] = useState(false);
+  const [editingCard, setEditingCard] = useState<Card | null>(null);
+  const [deletingCard, setDeletingCard] = useState<Card | null>(null);
+
   const [submitting, setSubmitting] = useState(false);
 
   /* ---------------- dados derivados ---------------- */
@@ -76,32 +83,41 @@ export function FinanceApp() {
       buildLedger({
         transactions,
         budgets,
+        cards,
         today,
         from: windowStart,
         to: shiftMonth(windowStart, WINDOW_SPAN - 1),
       }),
-    [transactions, budgets, today, windowStart],
+    [transactions, budgets, cards, today, windowStart],
   );
 
   const summary = useMemo(() => {
     const [month] = buildLedger({
       transactions,
       budgets,
+      cards,
       today,
       from: totalsMonth,
       to: totalsMonth,
     });
     return month ? summarizeMonth(month, budgets, today) : null;
-  }, [transactions, budgets, today, totalsMonth]);
+  }, [transactions, budgets, cards, today, totalsMonth]);
 
   const annual = useMemo(
     () => summarizeYear(transactions, totalsMonth.year),
     [transactions, totalsMonth.year],
   );
 
+  const cardIndex = useMemo(() => indexCards(cards), [cards]);
+
+  // O dia mostra o que sai do bolso nele: a compra no cartão aparece no dia do
+  // vencimento, junto com o resto da fatura, e não no dia em que foi feita.
   const dayTransactions = useMemo(
-    () => (selectedDay ? transactions.filter((tx) => tx.date === selectedDay) : []),
-    [transactions, selectedDay],
+    () =>
+      selectedDay
+        ? transactions.filter((tx) => chargeDateOf(tx, cardIndex) === selectedDay)
+        : [],
+    [transactions, cardIndex, selectedDay],
   );
 
   /* ---------------- ações ---------------- */
@@ -227,6 +243,39 @@ export function FinanceApp() {
     }
   }, [deletingBudget, finance, showToast]);
 
+  const handleSaveCard = useCallback(
+    async (card: { id?: string | null; name: string; dueDay: number }) => {
+      setSubmitting(true);
+      try {
+        await finance.saveCard(card);
+        showToast("cartão salvo.");
+        setCardModalOpen(false);
+        setEditingCard(null);
+      } catch (error) {
+        console.error(error);
+        showToast("não foi possível salvar o cartão.", "error");
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [finance, showToast],
+  );
+
+  const confirmDeleteCard = useCallback(async () => {
+    if (!deletingCard) return;
+    setSubmitting(true);
+    try {
+      await finance.deleteCard(deletingCard.id);
+      showToast("cartão excluído.");
+      setDeletingCard(null);
+    } catch (error) {
+      console.error(error);
+      showToast("não foi possível excluir o cartão.", "error");
+    } finally {
+      setSubmitting(false);
+    }
+  }, [deletingCard, finance, showToast]);
+
   const stepDay = useCallback((delta: number) => {
     setSelectedDay((current) => {
       if (!current) return current;
@@ -284,17 +333,27 @@ export function FinanceApp() {
       )}
 
       {view === "orcamentos" && (
-        <BudgetsView
+        <PlanningView
           budgets={budgets}
-          onCreate={() => {
+          cards={cards}
+          onCreateBudget={() => {
             setEditingBudget(null);
             setBudgetModalOpen(true);
           }}
-          onEdit={(budget) => {
+          onEditBudget={(budget) => {
             setEditingBudget(budget);
             setBudgetModalOpen(true);
           }}
-          onDelete={setDeletingBudget}
+          onDeleteBudget={setDeletingBudget}
+          onCreateCard={() => {
+            setEditingCard(null);
+            setCardModalOpen(true);
+          }}
+          onEditCard={(card) => {
+            setEditingCard(card);
+            setCardModalOpen(true);
+          }}
+          onDeleteCard={setDeletingCard}
         />
       )}
 
@@ -302,6 +361,7 @@ export function FinanceApp() {
         <DayDrawer
           dateStr={selectedDay}
           transactions={dayTransactions}
+          cards={cards}
           filter={dayFilter}
           onFilterChange={setDayFilter}
           onClose={() => setSelectedDay(null)}
@@ -320,6 +380,7 @@ export function FinanceApp() {
           editing={editingTx}
           // Estando o painel filtrado numa coluna, o novo lançamento já nasce nela.
           defaultType={dayFilter === "todos" ? mobileType : dayFilter}
+          cards={cards}
           submitting={submitting}
           onSubmit={handleSubmitTransaction}
         />
@@ -335,6 +396,19 @@ export function FinanceApp() {
           editing={editingBudget}
           submitting={submitting}
           onSubmit={handleSaveBudget}
+        />
+      )}
+
+      {cardModalOpen && (
+        <CardModal
+          key={editingCard?.id ?? "novo"}
+          onClose={() => {
+            setCardModalOpen(false);
+            setEditingCard(null);
+          }}
+          editing={editingCard}
+          submitting={submitting}
+          onSubmit={handleSaveCard}
         />
       )}
 
@@ -401,6 +475,22 @@ export function FinanceApp() {
             {
               label: "excluir orçamento",
               onClick: () => void confirmDeleteBudget(),
+              tone: "danger",
+            },
+          ]}
+        />
+      )}
+
+      {deletingCard && (
+        <ConfirmDialog
+          onClose={() => setDeletingCard(null)}
+          title="excluir cartão"
+          description={`os lançamentos de "${deletingCard.name}" continuam salvos, mas voltam a sair do saldo no dia da compra.`}
+          busy={submitting}
+          actions={[
+            {
+              label: "excluir cartão",
+              onClick: () => void confirmDeleteCard(),
               tone: "danger",
             },
           ]}

@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   MoreVertical,
@@ -12,15 +11,37 @@ import {
   X,
 } from "lucide-react";
 import { dayShortLabel, formatCurrency, formatDayMonth } from "@/lib/format";
-import { TX_TYPE_META, TX_TYPE_ORDER, type Transaction, type TxType } from "@/lib/types";
+import {
+  TX_TYPE_META,
+  TX_TYPE_ORDER,
+  type Card,
+  type Transaction,
+  type TxType,
+} from "@/lib/types";
+import { Select, type SelectOption } from "@/components/ui/Select";
 import { TypeBadge } from "@/components/ui/TypeBadge";
 
 /** Exportado porque quem abre o drawer decide o filtro inicial. */
 export type DayFilter = TxType | "todos";
 
+const FILTER_OPTIONS: SelectOption<DayFilter>[] = [
+  {
+    value: "todos",
+    label: "todos os tipos",
+    icon: <span className="size-4 shrink-0 rounded-full border-2 border-fg-subtle" />,
+  },
+  ...TX_TYPE_ORDER.map((type) => ({
+    value: type as DayFilter,
+    label: TX_TYPE_META[type].label,
+    icon: <TypeBadge type={type} size={18} />,
+  })),
+];
+
 interface DayDrawerProps {
   dateStr: string;
+  /** Já resolvidas pela data de cobrança — no cartão, a data do vencimento. */
   transactions: Transaction[];
+  cards: Card[];
   /** Controlado de fora: clicar numa coluna da tabela já abre filtrado nela. */
   filter: DayFilter;
   onFilterChange: (filter: DayFilter) => void;
@@ -34,6 +55,7 @@ interface DayDrawerProps {
 export function DayDrawer({
   dateStr,
   transactions,
+  cards,
   filter,
   onFilterChange,
   onClose,
@@ -127,7 +149,25 @@ export function DayDrawer({
         </header>
 
         <div className="shrink-0 px-3 pb-3 md:px-4">
-          <FilterSelect value={filter} onChange={onFilterChange} />
+          <Select
+            value={filter}
+            options={FILTER_OPTIONS}
+            onChange={onFilterChange}
+            ariaLabel="Filtrar por tipo"
+            triggerClassName="flex w-full items-center gap-2.5 rounded-full border border-border-base px-4 py-2.5 text-sm transition-colors hover:bg-surface-2"
+            trigger={
+              <>
+                {filter === "todos" ? (
+                  <span className="size-4 shrink-0 rounded-full border-2 border-fg-subtle" />
+                ) : (
+                  <TypeBadge type={filter} size={18} />
+                )}
+                <span className="flex-1 text-left lowercase">
+                  {filter === "todos" ? "todos os tipos" : TX_TYPE_META[filter].label}
+                </span>
+              </>
+            }
+          />
         </div>
 
         <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
@@ -141,6 +181,9 @@ export function DayDrawer({
                 <TransactionRow
                   key={tx.id}
                   tx={tx}
+                  cardName={cards.find((card) => card.id === tx.cardId)?.name}
+                  // No cartão a linha aparece no dia da fatura, não no da compra.
+                  chargedLater={tx.date !== dateStr}
                   onEdit={() => onEdit(tx)}
                   onDelete={() => onDelete(tx)}
                 />
@@ -169,107 +212,16 @@ export function DayDrawer({
 
 /* ------------------------------------------------------------------ */
 
-function FilterSelect({
-  value,
-  onChange,
-}: {
-  value: DayFilter;
-  onChange: (value: DayFilter) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (e: PointerEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    const timer = setTimeout(() => document.addEventListener("pointerdown", onPointerDown), 0);
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener("pointerdown", onPointerDown);
-    };
-  }, [open]);
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-2.5 rounded-full border border-border-base px-4 py-2.5 text-sm transition-colors hover:bg-surface-2"
-      >
-        {value === "todos" ? (
-          <span className="size-4 shrink-0 rounded-full border-2 border-fg-subtle" />
-        ) : (
-          <TypeBadge type={value} size={18} />
-        )}
-        <span className="flex-1 text-left lowercase">
-          {value === "todos" ? "todos os tipos" : TX_TYPE_META[value].label}
-        </span>
-        <ChevronDown size={16} className={`text-fg-subtle transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-
-      {open && (
-        <div className="animate-pop-in absolute inset-x-0 top-full z-20 mt-1.5 overflow-hidden rounded-2xl border border-border-base bg-surface p-1.5 shadow-e3">
-          <FilterOption
-            active={value === "todos"}
-            onClick={() => {
-              onChange("todos");
-              setOpen(false);
-            }}
-          >
-            <span className="size-4 shrink-0 rounded-full border-2 border-fg-subtle" />
-            todos os tipos
-          </FilterOption>
-          {TX_TYPE_ORDER.map((type) => (
-            <FilterOption
-              key={type}
-              active={value === type}
-              onClick={() => {
-                onChange(type);
-                setOpen(false);
-              }}
-            >
-              <TypeBadge type={type} size={18} />
-              {TX_TYPE_META[type].label}
-            </FilterOption>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function FilterOption({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm lowercase transition-colors ${
-        active ? "bg-surface-3 font-medium" : "hover:bg-surface-2"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-
 function TransactionRow({
   tx,
+  cardName,
+  chargedLater,
   onEdit,
   onDelete,
 }: {
   tx: Transaction;
+  cardName?: string;
+  chargedLater: boolean;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -310,10 +262,12 @@ function TransactionRow({
         </button>
       </div>
 
-      <div className="mt-1 flex items-center justify-between pl-8 text-xs text-fg-subtle">
-        <span className="tabular">{formatDayMonth(tx.date)}</span>
-        <span className="lowercase">
-          {meta.singular}
+      <div className="mt-1 flex items-center justify-between gap-2 pl-8 text-xs text-fg-subtle">
+        <span className="shrink-0 lowercase tabular">
+          {chargedLater ? `compra ${formatDayMonth(tx.date)}` : formatDayMonth(tx.date)}
+        </span>
+        <span className="truncate lowercase">
+          {cardName ?? meta.singular}
           {tx.groupId && " · recorrente"}
         </span>
       </div>

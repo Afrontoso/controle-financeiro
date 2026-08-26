@@ -44,20 +44,42 @@ export function BalancesView({
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const columns = isDesktop ? TX_TYPE_ORDER : [mobileType];
 
-  // Abre já posicionado no mês corrente, e reposiciona a cada "ir pra hoje".
+  const firstMonthKey = months[0]?.key;
+  const lastToken = useRef(scrollToTodayToken);
+  const mounted = useRef(false);
+
+  /**
+   * Só reposiciona quando o usuário pede: ao abrir, ao clicar em "ir pra hoje" e
+   * ao trocar a janela de meses. Salvar um lançamento refaz `months`, mas isso
+   * não pode arrastar quem estava olhando um mês à frente de volta para hoje —
+   * por isso a dependência é a chave do primeiro mês, não o array.
+   */
   useEffect(() => {
     const container = scrollRef.current;
-    const monthNode = currentMonthRef.current;
-    if (!container || !monthNode) return;
+    if (!container) return;
 
-    const behavior = scrollToTodayToken === 0 ? "auto" : "smooth";
+    const first = !mounted.current;
+    const goToday = first || lastToken.current !== scrollToTodayToken;
+    const behavior = first ? "auto" : "smooth";
+    lastToken.current = scrollToTodayToken;
+    mounted.current = true;
+
+    // Janela nova sem pedido de "hoje": começa do primeiro mês dela.
+    if (!goToday) {
+      container.scrollTo({ left: 0, behavior });
+      return;
+    }
+
+    const monthNode = currentMonthRef.current;
+    if (!monthNode) return;
+
     // offsetLeft é relativo ao offsetParent, que aqui não é o container de
     // scroll — medir pelos rects evita somar a largura da sidebar.
     const delta =
       monthNode.getBoundingClientRect().left - container.getBoundingClientRect().left - 16;
     container.scrollBy({ left: delta, behavior });
     todayRef.current?.scrollIntoView({ block: "center", inline: "nearest", behavior });
-  }, [scrollToTodayToken, months]);
+  }, [scrollToTodayToken, firstMonthKey]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">

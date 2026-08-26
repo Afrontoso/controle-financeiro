@@ -1,11 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Banknote, CalendarDays, ChevronDown, Pencil, Repeat } from "lucide-react";
+import { useState } from "react";
+import { Banknote, CalendarDays, CreditCard, Pencil, Repeat } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
+import { Select } from "@/components/ui/Select";
 import { TypeBadge } from "@/components/ui/TypeBadge";
-import { formatCurrency } from "@/lib/format";
-import { TX_TYPE_META, TX_TYPE_ORDER, type Transaction, type TxType } from "@/lib/types";
+import { dayShortLabel, formatCurrency } from "@/lib/format";
+import { nextDueDate } from "@/lib/ledger";
+import {
+  TX_TYPE_META,
+  TX_TYPE_ORDER,
+  type Card,
+  type Transaction,
+  type TxType,
+} from "@/lib/types";
 import type { TransactionPayload } from "@/hooks/useFinanceData";
 
 type Frequency = "diario" | "semanal" | "mensal";
@@ -16,6 +24,19 @@ const FREQUENCY_LABEL: Record<Frequency, string> = {
   mensal: "todo mês",
 };
 
+const REPEAT_OPTIONS: { value: Frequency | null; label: string }[] = [
+  { value: null, label: "não repete" },
+  { value: "diario", label: FREQUENCY_LABEL.diario },
+  { value: "semanal", label: FREQUENCY_LABEL.semanal },
+  { value: "mensal", label: FREQUENCY_LABEL.mensal },
+];
+
+const TYPE_OPTIONS = TX_TYPE_ORDER.map((type) => ({
+  value: type,
+  label: TX_TYPE_META[type].singular,
+  icon: <TypeBadge type={type} size={18} />,
+}));
+
 interface TransactionModalProps {
   onClose: () => void;
   /** Dia pré-selecionado ao criar. */
@@ -23,6 +44,7 @@ interface TransactionModalProps {
   /** Preenchido quando o modal está em modo edição. */
   editing: Transaction | null;
   defaultType?: TxType;
+  cards: Card[];
   submitting: boolean;
   onSubmit: (payload: TransactionPayload) => void;
 }
@@ -32,6 +54,7 @@ export function TransactionModal({
   date,
   editing,
   defaultType = "saida",
+  cards,
   submitting,
   onSubmit,
 }: TransactionModalProps) {
@@ -42,6 +65,9 @@ export function TransactionModal({
   const [type, setType] = useState<TxType>(editing?.type ?? defaultType);
   const [description, setDescription] = useState(editing?.description ?? "");
   const [dateValue, setDateValue] = useState(editing?.date ?? date);
+  const [cardId, setCardId] = useState<string | null>(
+    () => editing?.cardId ?? cards[0]?.id ?? null,
+  );
   const [repeats, setRepeats] = useState(false);
   const [frequency, setFrequency] = useState<Frequency>("mensal");
   const [count, setCount] = useState("2");
@@ -50,6 +76,9 @@ export function TransactionModal({
 
   const amount = Number(amountDigits || "0") / 100;
   const meta = TX_TYPE_META[type];
+
+  const selectedCard = cards.find((card) => card.id === cardId) ?? null;
+  const chargeDate = selectedCard ? nextDueDate(dateValue, selectedCard.dueDay) : null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,6 +95,7 @@ export function TransactionModal({
       type,
       amount,
       description: description.trim(),
+      cardId: type === "cartao" ? cardId : null,
       repeatFrequency: repeats ? frequency : undefined,
       repeatCount: repeats && !indeterminate ? Number(count) : undefined,
       isIndeterminate: repeats && indeterminate,
@@ -96,8 +126,40 @@ export function TransactionModal({
           </Row>
 
           <Row icon={() => <TypeBadge type={type} size={20} />}>
-            <TypeSelect value={type} onChange={setType} />
+            <div className="flex-1">
+              <Select value={type} options={TYPE_OPTIONS} onChange={setType} ariaLabel="Tipo" />
+            </div>
           </Row>
+
+          {type === "cartao" && (
+            <Row icon={CreditCard} align="start">
+              <div className="flex-1">
+                {cards.length === 0 ? (
+                  <p className="text-sm lowercase text-fg-muted">
+                    nenhum cartão cadastrado — o gasto sai no próprio dia. cadastre um em
+                    orçamentos para juntar tudo na fatura.
+                  </p>
+                ) : (
+                  <>
+                    <Select
+                      value={cardId}
+                      options={[
+                        ...cards.map((card) => ({ value: card.id as string | null, label: card.name })),
+                        { value: null, label: "sem cartão" },
+                      ]}
+                      onChange={setCardId}
+                      ariaLabel="Cartão"
+                    />
+                    <p className="mt-2 text-xs lowercase text-fg-subtle">
+                      {chargeDate
+                        ? `cobra em ${dayShortLabel(chargeDate)}, no vencimento do cartão`
+                        : "sai do saldo no próprio dia da compra"}
+                    </p>
+                  </>
+                )}
+              </div>
+            </Row>
+          )}
 
           <Row icon={Pencil}>
             <input
@@ -128,13 +190,14 @@ export function TransactionModal({
           {!editing && (
             <Row icon={Repeat} align="start">
               <div className="flex-1">
-                <RepeatSelect
-                  repeats={repeats}
-                  frequency={frequency}
+                <Select
+                  value={repeats ? frequency : null}
+                  options={REPEAT_OPTIONS}
                   onChange={(next) => {
                     setRepeats(next !== null);
                     if (next) setFrequency(next);
                   }}
+                  ariaLabel="Repetição"
                 />
 
                 {repeats && (
@@ -207,125 +270,6 @@ function Row({
         <Icon size={20} />
       </span>
       {children}
-    </div>
-  );
-}
-
-function TypeSelect({ value, onChange }: { value: TxType; onChange: (type: TxType) => void }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (e: PointerEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    const timer = setTimeout(() => document.addEventListener("pointerdown", onPointerDown), 0);
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener("pointerdown", onPointerDown);
-    };
-  }, [open]);
-
-  return (
-    <div ref={ref} className="relative flex-1">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between gap-2 text-left lowercase"
-      >
-        {TX_TYPE_META[value].singular}
-        <ChevronDown size={18} className={`text-fg-subtle transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-
-      {open && (
-        <div className="animate-pop-in absolute inset-x-0 top-full z-30 mt-2 overflow-hidden rounded-2xl border border-border-base bg-surface p-1.5 shadow-e3">
-          {TX_TYPE_ORDER.map((type) => (
-            <button
-              key={type}
-              type="button"
-              onClick={() => {
-                onChange(type);
-                setOpen(false);
-              }}
-              className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm lowercase transition-colors ${
-                value === type ? "bg-surface-3 font-medium" : "hover:bg-surface-2"
-              }`}
-            >
-              <TypeBadge type={type} size={18} />
-              {TX_TYPE_META[type].singular}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function RepeatSelect({
-  repeats,
-  frequency,
-  onChange,
-}: {
-  repeats: boolean;
-  frequency: Frequency;
-  onChange: (value: Frequency | null) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (e: PointerEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    const timer = setTimeout(() => document.addEventListener("pointerdown", onPointerDown), 0);
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener("pointerdown", onPointerDown);
-    };
-  }, [open]);
-
-  const options: { value: Frequency | null; label: string }[] = [
-    { value: null, label: "não repete" },
-    { value: "diario", label: FREQUENCY_LABEL.diario },
-    { value: "semanal", label: FREQUENCY_LABEL.semanal },
-    { value: "mensal", label: FREQUENCY_LABEL.mensal },
-  ];
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between gap-2 text-left lowercase"
-      >
-        {repeats ? FREQUENCY_LABEL[frequency] : "não repete"}
-        <ChevronDown size={18} className={`text-fg-subtle transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-
-      {open && (
-        <div className="animate-pop-in absolute inset-x-0 top-full z-30 mt-2 overflow-hidden rounded-2xl border border-border-base bg-surface p-1.5 shadow-e3">
-          {options.map((option) => {
-            const active = option.value === null ? !repeats : repeats && frequency === option.value;
-            return (
-              <button
-                key={option.label}
-                type="button"
-                onClick={() => {
-                  onChange(option.value);
-                  setOpen(false);
-                }}
-                className={`flex w-full items-center rounded-xl px-3 py-2.5 text-sm lowercase transition-colors ${
-                  active ? "bg-surface-3 font-medium" : "hover:bg-surface-2"
-                }`}
-              >
-                {option.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }

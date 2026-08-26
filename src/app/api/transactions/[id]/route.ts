@@ -67,7 +67,7 @@ export async function PATCH(
         }
 
         const data = await request.json();
-        const { description, amount, type, date, updateAll } = data;
+        const { description, amount, type, date, cardId, updateAll } = data;
 
         const transaction = await prisma.transaction.findFirst({
             where: { id, userId },
@@ -82,6 +82,16 @@ export async function PATCH(
         if (description !== undefined) updateData.description = description;
         if (amount !== undefined) updateData.amount = Number(amount);
         if (type !== undefined) updateData.type = type;
+
+        if (cardId !== undefined) {
+            // Só vincula um cartão que seja do próprio usuário; null desvincula.
+            if (cardId === null) {
+                updateData.cardId = null;
+            } else {
+                const card = await prisma.card.findFirst({ where: { id: cardId, userId }, select: { id: true } });
+                updateData.cardId = card?.id ?? null;
+            }
+        }
 
         if (updateAll && transaction.groupId) {
             // Edita o valor, tipo e descricao de todas as ocorrencias do grupo

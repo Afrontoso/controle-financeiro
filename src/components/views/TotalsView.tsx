@@ -1,8 +1,8 @@
 "use client";
 
 import { formatCurrency, formatPercent } from "@/lib/format";
-import type { AnnualSavings, MonthSummary } from "@/lib/ledger";
-import { TX_TYPE_META, type Transaction, type TxType } from "@/lib/types";
+import type { AnnualSavings, GastoEntry, MonthSummary } from "@/lib/ledger";
+import { TX_TYPE_META, type TxType } from "@/lib/types";
 import { TypeBadge } from "@/components/ui/TypeBadge";
 
 interface TotalsViewProps {
@@ -170,7 +170,8 @@ export function TotalsView({ summary, annual, onSelectDay }: TotalsViewProps) {
           ) : (
             <ul>
               {gastos.map((tx) => (
-                <GastoRow key={tx.id} tx={tx} onClick={() => onSelectDay(tx.date, tx.type)} />
+                // Abre o dia em que o gasto sai do saldo — no cartão, o da fatura.
+                <GastoRow key={tx.id} tx={tx} onClick={() => onSelectDay(tx.chargeDate, tx.type)} />
               ))}
             </ul>
           )}
@@ -231,7 +232,7 @@ function MiniStat({ label, value, color }: { label: string; value: string; color
   );
 }
 
-function GastoRow({ tx, onClick }: { tx: Transaction; onClick: () => void }) {
+function GastoRow({ tx, onClick }: { tx: GastoEntry; onClick: () => void }) {
   const meta = TX_TYPE_META[tx.type];
   return (
     <li>

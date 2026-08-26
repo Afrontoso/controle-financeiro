@@ -18,17 +18,33 @@ export function HorizonView({ months, onSelectDay, scrollToTodayToken }: Horizon
   const scrollRef = useRef<HTMLDivElement>(null);
   const currentRef = useRef<HTMLDivElement>(null);
 
+  const firstMonthKey = months[0]?.key;
+  const lastToken = useRef(scrollToTodayToken);
+  const mounted = useRef(false);
+
+  // Mesma regra da tabela de saldos: salvar um lançamento não pode puxar a
+  // rolagem de volta para o mês corrente.
   useEffect(() => {
     const container = scrollRef.current;
+    if (!container) return;
+
+    const first = !mounted.current;
+    const goToday = first || lastToken.current !== scrollToTodayToken;
+    const behavior = first ? "auto" : "smooth";
+    lastToken.current = scrollToTodayToken;
+    mounted.current = true;
+
+    if (!goToday) {
+      container.scrollTo({ left: 0, behavior });
+      return;
+    }
+
     const node = currentRef.current;
-    if (!container || !node) return;
+    if (!node) return;
     // Mede por rects: offsetLeft aqui é relativo ao offsetParent, não ao container.
     const delta = node.getBoundingClientRect().left - container.getBoundingClientRect().left - 16;
-    container.scrollBy({
-      left: delta,
-      behavior: scrollToTodayToken === 0 ? "auto" : "smooth",
-    });
-  }, [scrollToTodayToken, months]);
+    container.scrollBy({ left: delta, behavior });
+  }, [scrollToTodayToken, firstMonthKey]);
 
   return (
     <div ref={scrollRef} className="scrollbar-thin min-h-0 flex-1 overflow-auto p-3 md:p-6">

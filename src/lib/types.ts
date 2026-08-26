@@ -18,6 +18,8 @@ export interface Transaction {
   type: TxType;
   category?: string;
   groupId?: string;
+  /** Só em lançamentos de cartão: a cobrança vai para o vencimento da fatura. */
+  cardId?: string;
 }
 
 export interface Budget {
@@ -25,6 +27,13 @@ export interface Budget {
   name: string;
   amount: number;
   divideBy: number;
+}
+
+export interface Card {
+  id: string;
+  name: string;
+  /** Dia do vencimento da fatura (1–31). */
+  dueDay: number;
 }
 
 export interface TxTypeMeta {

@@ -1,4 +1,4 @@
-import type { Budget, Transaction, TxType } from "@/lib/types";
+import type { Budget, Card, Transaction, TxType } from "@/lib/types";
 import { monthLongLabel, monthShortLabel, toDateStr } from "@/lib/format";
 
 export interface YearMonth {
@@ -62,21 +62,66 @@ function compareYearMonth(a: YearMonth, b: YearMonth): number {
   return a.year !== b.year ? a.year - b.year : a.month - b.month;
 }
 
-function groupByDate(transactions: Transaction[]): Map<string, Transaction[]> {
+export type CardIndex = Map<string, Card>;
+
+export function indexCards(cards: Card[]): CardIndex {
+  return new Map(cards.map((card) => [card.id, card]));
+}
+
+/** O vencimento cai no último dia quando o mês é curto demais (dia 31 em abril). */
+function clampDueDay(year: number, month: number, dueDay: number): number {
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  return Math.min(Math.max(dueDay, 1), daysInMonth);
+}
+
+/**
+ * Data em que o lançamento efetivamente sai do bolso.
+ *
+ * Só difere da data do lançamento no cartão: a compra fica registrada no dia em
+ * que foi feita, mas o dinheiro sai no primeiro vencimento igual ou posterior a
+ * ela — o que joga boa parte das compras do mês para a fatura do mês seguinte.
+ */
+export function chargeDateOf(tx: Transaction, cards: CardIndex): string {
+  if (tx.type !== "cartao" || !tx.cardId) return tx.date;
+  const card = cards.get(tx.cardId);
+  if (!card) return tx.date;
+  return nextDueDate(tx.date, card.dueDay);
+}
+
+/** Primeiro vencimento igual ou posterior a `dateStr`. */
+export function nextDueDate(dateStr: string, dueDay: number): string {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  let dueYear = year;
+  let dueMonth = month - 1;
+
+  if (day > clampDueDay(dueYear, dueMonth, dueDay)) {
+    const next = new Date(dueYear, dueMonth + 1, 1);
+    dueYear = next.getFullYear();
+    dueMonth = next.getMonth();
+  }
+
+  return toDateStr(new Date(dueYear, dueMonth, clampDueDay(dueYear, dueMonth, dueDay)));
+}
+
+function groupByChargeDate(
+  transactions: Transaction[],
+  cards: CardIndex,
+): Map<string, Transaction[]> {
   const map = new Map<string, Transaction[]>();
   for (const tx of transactions) {
-    const bucket = map.get(tx.date);
+    const key = chargeDateOf(tx, cards);
+    const bucket = map.get(key);
     if (bucket) bucket.push(tx);
-    else map.set(tx.date, [tx]);
+    else map.set(key, [tx]);
   }
   return map;
 }
 
-/** Mês da transação mais antiga, ou null se não houver nenhuma. */
-function earliestTxMonth(transactions: Transaction[]): YearMonth | null {
+/** Mês da cobrança mais antiga, ou null se não houver nenhuma. */
+function earliestTxMonth(transactions: Transaction[], cards: CardIndex): YearMonth | null {
   let earliest: YearMonth | null = null;
   for (const tx of transactions) {
-    const [year, month] = tx.date.split("-").map(Number);
+    const [year, month] = chargeDateOf(tx, cards).split("-").map(Number);
     const candidate = { year, month: month - 1 };
     if (!earliest || compareYearMonth(candidate, earliest) < 0) earliest = candidate;
   }
@@ -86,6 +131,8 @@ function earliestTxMonth(transactions: Transaction[]): YearMonth | null {
 interface BuildLedgerOptions {
   transactions: Transaction[];
   budgets: Budget[];
+  /** Cartões cadastrados: definem para qual dia a fatura empurra a compra. */
+  cards?: Card[];
   today: Date;
   /** Primeiro mês a devolver. */
   from: YearMonth;
@@ -105,18 +152,20 @@ interface BuildLedgerOptions {
 export function buildLedger({
   transactions,
   budgets,
+  cards = [],
   today,
   from,
   to,
 }: BuildLedgerOptions): MonthEntry[] {
   const drainPerDay = dailyDrain(budgets);
-  const byDate = groupByDate(transactions);
+  const cardIndex = indexCards(cards);
+  const byDate = groupByChargeDate(transactions, cardIndex);
 
   const todayMonth: YearMonth = { year: today.getFullYear(), month: today.getMonth() };
   const todayStr = toDateStr(today);
 
   let start: YearMonth = compareYearMonth(from, todayMonth) < 0 ? from : todayMonth;
-  const earliest = earliestTxMonth(transactions);
+  const earliest = earliestTxMonth(transactions, cardIndex);
   if (earliest && compareYearMonth(earliest, start) < 0) start = earliest;
 
   const cursor = new Date(start.year, start.month, 1);
@@ -213,7 +262,12 @@ export interface MonthSummary {
   sobraOrcamento: number;
   projecaoMes: number;
   gastoUsadoPercent: number;
-  gastos: Transaction[];
+  gastos: GastoEntry[];
+}
+
+/** Gasto do mês junto do dia em que ele sai do saldo (no cartão, o vencimento). */
+export interface GastoEntry extends Transaction {
+  chargeDate: string;
 }
 
 /** Métricas do painel de totais, derivadas de um mês já simulado. */
@@ -227,9 +281,19 @@ export function summarizeMonth(
   const totalGastos = totals.saida + totals.cartao + totals.gasto_diario;
 
   const gastos = month.days
-    .flatMap((d) => d.transactions)
+    .flatMap((day) => day.transactions.map((tx) => ({ ...tx, chargeDate: day.dateStr })))
     .filter((tx) => tx.type === "saida" || tx.type === "cartao" || tx.type === "gasto_diario")
-    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+    .sort((a, b) =>
+      a.chargeDate !== b.chargeDate
+        ? a.chargeDate < b.chargeDate
+          ? 1
+          : -1
+        : a.date < b.date
+          ? 1
+          : a.date > b.date
+            ? -1
+            : 0,
+    );
 
   let daysElapsed = daysInMonth;
   if (month.year === today.getFullYear() && month.month === today.getMonth()) {

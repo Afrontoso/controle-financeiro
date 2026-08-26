@@ -17,12 +17,33 @@ model Transaction {
   category    String
   groupId     String?
   createdAt   DateTime @default(now())
-  
+
   userId      String?
   user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // Só faz sentido em lançamentos do tipo "cartao": desloca a cobrança para o
+  // vencimento da fatura. Sem cartão, o gasto sai no próprio dia.
+  cardId      String?
+  card        Card?    @relation(fields: [cardId], references: [id], onDelete: SetNull)
+
   @@index([userId])
   @@index([groupId])
+  @@index([cardId])
+}
+
+model Card {
+  id        String   @id @default(uuid())
+  name      String
+  /// Dia do mês em que a fatura vence (1–31; meses curtos usam o último dia).
+  dueDay    Int      @default(10)
+  createdAt DateTime @default(now())
+
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  transactions Transaction[]
+
+  @@index([userId])
 }
 
 model Budget {
@@ -76,6 +97,7 @@ model User {
   
   transactions  Transaction[]
   budgets       Budget[]
+  cards         Card[]
 }
 
 model VerificationToken {

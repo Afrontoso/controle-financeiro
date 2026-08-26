@@ -42,6 +42,9 @@ export function Modal({ onClose, title, children, size = "sm" }: ModalProps) {
         role="dialog"
         aria-modal="true"
         className={`animate-pop-in flex max-h-[92dvh] w-full ${SIZES[size]} flex-col overflow-hidden rounded-t-3xl border border-border-base bg-surface shadow-e3 sm:rounded-3xl`}
+        // Como folha inferior no celular, o rodapé encostaria na barra de gestos;
+        // no desktop o inset é zero e nada muda.
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         {title !== undefined && (
           <header className="flex shrink-0 items-center justify-between px-6 pt-6 pb-4">
