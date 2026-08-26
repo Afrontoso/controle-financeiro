@@ -135,13 +135,14 @@ src/
 │  ├─ views/                saldos, horizonte, totais, orçamentos, cartões e menu
 │  ├─ shell/AppShell.tsx    sidebar (desktop) e barra inferior (mobile)
 │  ├─ landing/              página de apresentação
-│  └─ ui/                   Modal, Select, ConfirmDialog, Toast, TypeBadge, ViewHeader
+│  └─ ui/                   Modal, Select, QrCode, ConfirmDialog, Toast, TypeBadge, ViewHeader
 ├─ hooks/
 │  ├─ useFinanceData.ts     fetch e mutações da API
 │  └─ useMediaQuery.ts      breakpoint em JS (via useSyncExternalStore)
 └─ lib/
    ├─ ledger.ts             ⭐ o motor de cálculo
    ├─ format.ts             moeda, datas, percentual e faixas do heatmap
+   ├─ pix.ts                leitura do BR Code (nome do recebedor)
    └─ types.ts              tipos de lançamento e seus metadados
 ```
 
@@ -183,10 +184,11 @@ GOOGLE_CLIENT_SECRET="..."
 RESEND_API_KEY="re_..."          # resend.com > API Keys (sugestões do menu)
 SUGGESTIONS_EMAIL="voce@..."     # para onde as sugestões são enviadas
 SUGGESTIONS_FROM="onboarding@resend.dev"   # só troque com domínio verificado
-NEXT_PUBLIC_PIX_KEY=""           # chave pix da doação; vazio esconde a opção
+NEXT_PUBLIC_PIX_PAYLOAD=""       # "copia e cola" do pix: vira o QR Code do menu
+NEXT_PUBLIC_PIX_KEY=""           # chave pix, usada quando não há copia e cola
 ```
 
-As quatro últimas são opcionais: sem elas o app roda igual, só que "mandar sugestões" responde erro e a opção de doação não aparece no menu. `NEXT_PUBLIC_PIX_KEY` vai embutida no bundle do cliente — use uma chave que possa ser pública.
+As cinco últimas são opcionais: sem elas o app roda igual, só que "mandar sugestões" responde erro e a opção de doação não aparece no menu. As `NEXT_PUBLIC_` vão embutidas no bundle do cliente — e o copia e cola carrega o nome do recebedor —, então use dados que possam ser públicos.
 
 ```bash
 npx prisma migrate dev    # cria o schema

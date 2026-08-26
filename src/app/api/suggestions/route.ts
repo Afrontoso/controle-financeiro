@@ -1,16 +1,17 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { buildSuggestionEmailHtml } from "@/lib/suggestionEmail";
 
 const MAX_LENGTH = 2000;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Escapa o texto do usuário: ele vai dentro do HTML do e-mail. */
-function escapeHtml(value: string): string {
-    return value
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;");
+/** Campos opcionais: só entram no e-mail se vierem preenchidos e sãos. */
+function optionalText(value: unknown, maxLength: number): string | null {
+    if (typeof value !== "string") return null;
+    const trimmed = value.trim();
+    if (!trimmed || trimmed.length > maxLength) return null;
+    return trimmed;
 }
 
 export async function POST(request: Request) {
@@ -20,12 +21,16 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
         }
 
-        const { message } = await request.json();
-        const text = typeof message === "string" ? message.trim() : "";
+        const body = await request.json();
+        const text = typeof body.message === "string" ? body.message.trim() : "";
 
         if (text.length < 5 || text.length > MAX_LENGTH) {
             return NextResponse.json({ error: "Mensagem inválida" }, { status: 400 });
         }
+
+        const contactEmailRaw = optionalText(body.contactEmail, 200);
+        const contactEmail = contactEmailRaw && EMAIL_RE.test(contactEmailRaw) ? contactEmailRaw : null;
+        const contactPhone = optionalText(body.contactPhone, 40);
 
         const apiKey = process.env.RESEND_API_KEY;
         const to = process.env.SUGGESTIONS_EMAIL;
@@ -37,7 +42,12 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Envio não configurado" }, { status: 500 });
         }
 
-        const author = session.user.email ?? session.user.name ?? "usuário sem e-mail";
+        const html = buildSuggestionEmailHtml({
+            message: text,
+            contactEmail,
+            contactPhone,
+            account: session.user.email ?? session.user.name ?? "desconhecida",
+        });
 
         const res = await fetch("https://api.resend.com/emails", {
             method: "POST",
@@ -48,10 +58,10 @@ export async function POST(request: Request) {
             body: JSON.stringify({
                 from: `Controle financeiro <${from}>`,
                 to: [to],
-                subject: `sugestão de ${author}`,
-                // Responder no cliente de e-mail já endereça quem escreveu.
-                reply_to: session.user.email ?? undefined,
-                html: `<p><strong>de:</strong> ${escapeHtml(author)}</p><pre style="font-family:inherit;white-space:pre-wrap">${escapeHtml(text)}</pre>`,
+                subject: "nova sugestão no controle financeiro",
+                // Responder no cliente de e-mail já endereça quem pediu contato.
+                reply_to: contactEmail ?? undefined,
+                html,
             }),
         });
 
