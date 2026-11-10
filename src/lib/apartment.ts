@@ -699,6 +699,12 @@ export interface AmortizationResult {
   /** Meses a menos que sem amortizar. */
   mesesEconomizados: number;
   jurosEconomizados: number;
+  /**
+   * Parcela (com seguros) depois de 1, 5 e 10 anos de banco; `null` se já
+   * quitou. A "última parcela" não serve para comparar: amortizando, ela é só
+   * o resto miúdo da dívida.
+   */
+  parcelaEm: Record<12 | 60 | 120, number | null>;
 }
 
 export function simulateAmortization(
@@ -707,14 +713,17 @@ export function simulateAmortization(
   modo: AmortizationMode,
 ): AmortizationResult | null {
   const base = summarizeLoan(p, simulateLoan(p, { amortizacaoExtra: 0 }));
-  const sim = summarizeLoan(p, simulateLoan(p, { amortizacaoExtra: extra, amortizacaoModo: modo }));
+  const loan = simulateLoan(p, { amortizacaoExtra: extra, amortizacaoModo: modo });
+  const sim = summarizeLoan(p, loan);
   if (!base || !sim) return null;
+  const at = (meses: number) => (loan[meses - 1] ? loan[meses - 1].parcela + p.seguros : null);
   return {
     extra,
     modo,
     summary: sim,
     mesesEconomizados: base.meses - sim.meses,
     jurosEconomizados: base.juros - sim.juros,
+    parcelaEm: { 12: at(12), 60: at(60), 120: at(120) },
   };
 }
 

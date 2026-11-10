@@ -530,11 +530,30 @@ function AmortizationPanel({
             color={result.jurosEconomizados > 0 ? "var(--entrada)" : undefined}
           />
           <Figure label="total pago" value={<Brl value={result.summary.totalPago} />} hint="parcelas + extras + seguros" />
-          <Figure
-            label={modo === "prazo" ? "parcela" : "parcela no fim"}
-            value={<Brl value={modo === "prazo" ? result.summary.primeiraParcela : result.summary.ultimaParcela} />}
-            hint={extra > 0 ? `+ ${formatCurrency(extra)} de amortização por mês` : "sem amortizar"}
-          />
+          {modo === "prazo" ? (
+            <Figure
+              label="você paga por mês"
+              value={<Brl value={result.summary.primeiraParcela + extra} />}
+              hint={
+                extra > 0
+                  ? `parcela ${formatCurrency(result.summary.primeiraParcela)} + ${formatCurrency(extra)} extra`
+                  : "só a parcela, que sobe com a tr"
+              }
+            />
+          ) : (
+            <Figure
+              label="parcela em 5 anos"
+              value={result.parcelaEm[60] === null ? "quitado" : <Brl value={result.parcelaEm[60]} />}
+              hint={`começa em ${formatCurrency(result.summary.primeiraParcela)}${
+                result.parcelaEm[120] === null ? " · quitado em 10 anos" : ` · em 10 anos ${formatCurrency(result.parcelaEm[120])}`
+              }`}
+              color={
+                result.parcelaEm[60] !== null && result.parcelaEm[60] < result.summary.primeiraParcela
+                  ? "var(--entrada)"
+                  : undefined
+              }
+            />
+          )}
         </div>
       )}
 
@@ -544,6 +563,7 @@ function AmortizationPanel({
             <tr className="text-left text-xs lowercase text-fg-subtle">
               <th className="py-1.5 font-normal">extra por mês</th>
               <th className="py-1.5 font-normal">quita em</th>
+              {modo === "parcela" && <th className="py-1.5 text-right font-normal">parcela em 5 anos</th>}
               <th className="py-1.5 text-right font-normal">juros</th>
               <th className="py-1.5 text-right font-normal">economia</th>
             </tr>
@@ -565,6 +585,11 @@ function AmortizationPanel({
                       ({(r.summary.meses / 12).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} anos)
                     </span>
                   </td>
+                  {modo === "parcela" && (
+                    <td className="py-2 text-right">
+                      {r.parcelaEm[60] === null ? "quitado" : <Brl value={r.parcelaEm[60]} />}
+                    </td>
+                  )}
                   <td className="py-2 text-right">
                     <Brl value={r.summary.juros} />
                   </td>
