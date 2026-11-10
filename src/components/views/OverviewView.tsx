@@ -21,6 +21,7 @@ import {
   type SavingsTotal,
 } from "@/lib/ledger";
 import type { Card } from "@/lib/types";
+import { Brl, KeepRs } from "@/components/ui/Brl";
 
 /** Quantos dias à frente uma conta conta como "vence logo". */
 const SOON_DAYS = 5;
@@ -115,7 +116,7 @@ function SobraCard({ summary, className }: { summary: MonthBreakdown; className?
       <p className="mt-0.5 text-xs lowercase text-fg-subtle">
         {negativa ? "faltam" : "sobram"}{" "}
         {entradas > 0 ? `${formatPercent((Math.abs(sobra) / entradas) * 100, 0)} das entradas` : "sem entradas no mês"}
-        {" · "}saldo no fim do mês {formatCurrency(summary.saldoFinal)}
+        {" · "}saldo no fim do mês <Brl value={summary.saldoFinal} />
       </p>
 
       <div className="mt-4 flex h-3 w-full gap-0.5 overflow-hidden rounded-full bg-surface-3">
@@ -173,7 +174,7 @@ function ComprometidoCard({ summary }: { summary: MonthBreakdown }) {
             {formatPercent(percent, 0)}
           </p>
           <p className="mt-0.5 text-xs lowercase text-fg-subtle">
-            {formatCurrency(comprometido)} de {formatCurrency(entradas)}
+            <Brl value={comprometido} /> de <Brl value={entradas} />
           </p>
           <div className="relative mt-4 h-2.5 w-full rounded-full bg-surface-3">
             <div
@@ -225,7 +226,7 @@ function BillsCard({
       info="saídas e faturas de cartão agrupadas pelo dia em que saem do saldo. dias que já passaram aparecem riscados; as que vencem nos próximos 5 dias ficam destacadas. toque num dia para ver e editar os lançamentos."
       aside={
         <span className="text-sm tabular text-fg-muted">
-          falta {formatCurrency(pendente)} <span className="text-fg-subtle">de {formatCurrency(total)}</span>
+          falta <Brl value={pendente} /> <span className="text-fg-subtle">de <Brl value={total} /></span>
         </span>
       }
       className={className}
@@ -277,7 +278,7 @@ function BillsCard({
                       <span
                         className={`shrink-0 text-sm font-semibold tabular ${day.isPast ? "text-fg-subtle line-through" : ""}`}
                       >
-                        {formatCurrency(day.total)}
+                        <Brl value={day.total} />
                       </span>
                     </span>
                     <span className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
@@ -295,7 +296,7 @@ function BillsCard({
                           <span className="truncate">{item.label}</span>
                           {day.items.length > 1 && (
                             <span className="shrink-0 text-xs text-fg-subtle tabular">
-                              {formatCurrency(item.amount)}
+                              <Brl value={item.amount} />
                             </span>
                           )}
                         </span>
@@ -348,7 +349,7 @@ function CardsCard({ forecasts }: { forecasts: CardForecast[] }) {
                     <span className="block text-[11px] lowercase text-fg-subtle">vence dia {card.dueDay}</span>
                   </span>
                   <span className="shrink-0 font-semibold tabular" style={{ color: "var(--cartao)" }}>
-                    {formatCurrency(months[0]?.amount ?? 0)}
+                    <Brl value={months[0]?.amount ?? 0} />
                   </span>
                 </div>
                 <div className="mt-2.5 grid grid-cols-4 items-end gap-1.5">
@@ -394,7 +395,7 @@ function EconomiasCard({ summary, savings }: { summary: MonthBreakdown; savings:
       <div className="mt-4 rounded-xl bg-surface-2 px-3 py-2.5">
         <p className="flex items-baseline justify-between gap-2 text-sm">
           <span className="lowercase text-fg-muted">neste mês</span>
-          <span className="font-semibold tabular">{formatCurrency(summary.economias)}</span>
+          <span className="font-semibold tabular"><Brl value={summary.economias} /></span>
         </p>
         <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-surface-3">
           <div
@@ -466,9 +467,9 @@ function ProjecaoCard({
                 </div>
               </div>
               <span className="text-sm font-semibold tabular" style={{ color }}>
-                {formatCurrency(b.sobra)}
+                <Brl value={b.sobra} />
               </span>
-              <span className="text-[11px] tabular text-fg-subtle">saldo {formatCurrency(b.saldoFinal)}</span>
+              <span className="text-[11px] tabular text-fg-subtle">saldo <Brl value={b.saldoFinal} /></span>
             </button>
           );
         })}
@@ -507,7 +508,7 @@ function DeadlineBanner({
             <span className="font-semibold tabular">
               {p.days === 0 ? "hoje" : p.days === 1 ? "amanhã" : `em ${p.days} dias`} ({formatDayMonth(p.data)})
             </span>{" "}
-            · {p.titulo}
+            · <KeepRs text={p.titulo} />
           </span>
         ))}
       </span>
@@ -522,6 +523,7 @@ const MORADIA_COLORS: Record<string, string> = {
   despachante: "var(--diario)",
   jurosObra: "var(--saida)",
   banco: "#2563eb",
+  amortizacao: "#0891b2",
   condominio: "var(--economia)",
 };
 
@@ -560,7 +562,7 @@ function MoradiaCard({
         <Money value={m.total} color="var(--fg)" big />
       )}
       <p className="mt-0.5 text-xs lowercase text-fg-subtle">
-        {formatCurrency(m.total)}
+        <Brl value={m.total} />
         {summary.entradas > 0 && ` · ${formatPercent(pctEntradas, 0)} de todas as entradas`} · {m.fase}
       </p>
 
@@ -582,7 +584,7 @@ function MoradiaCard({
           <div key={c.key} className="flex items-center gap-2">
             <span className="size-1.5 shrink-0 rounded-full" style={{ background: MORADIA_COLORS[c.key] }} />
             <dt className="lowercase text-fg-muted">{c.label}</dt>
-            <dd className="ml-auto tabular">{formatCurrency(m[c.key])}</dd>
+            <dd className="ml-auto tabular"><Brl value={m[c.key]} /></dd>
           </div>
         ))}
       </dl>
@@ -670,7 +672,7 @@ function Legend({
       <span className="size-2 shrink-0 rounded-full" style={{ background: color }} />
       <dt className="truncate lowercase text-fg-muted">{label}</dt>
       <dd className="ml-auto shrink-0 font-medium tabular">
-        {formatCurrency(value)}
+        <Brl value={value} />
         {percent !== undefined && (
           <span className="ml-1 text-[11px] text-fg-subtle">{formatPercent(percent, 0)}</span>
         )}

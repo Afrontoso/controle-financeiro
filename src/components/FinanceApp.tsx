@@ -348,6 +348,27 @@ export function FinanceApp() {
     [apartment, showToast],
   );
 
+  const applyAmortization = useCallback(
+    async (extra: number, modo: "prazo" | "parcela") => {
+      if (!apartment.plan) return;
+      setPlanBusy(true);
+      try {
+        await apartment.savePlan({ ...apartment.plan, amortizacaoExtra: extra, amortizacaoModo: modo });
+        showToast(
+          extra > 0
+            ? "amortização salva no plano. toque em “lançar no saldo” para atualizar as parcelas."
+            : "amortização tirada do plano. toque em “lançar no saldo” para atualizar.",
+        );
+      } catch (error) {
+        console.error(error);
+        showToast("não foi possível salvar a amortização.", "error");
+      } finally {
+        setPlanBusy(false);
+      }
+    },
+    [apartment, showToast],
+  );
+
   const confirmDeletePlan = useCallback(async () => {
     setPlanBusy(true);
     try {
@@ -449,6 +470,7 @@ export function FinanceApp() {
           onEdit={() => setPlanModalOpen(true)}
           onSync={() => void syncPlan()}
           onDelete={() => setDeletingPlan(true)}
+          onApplyAmortization={(extra, modo) => void applyAmortization(extra, modo)}
         />
       )}
 

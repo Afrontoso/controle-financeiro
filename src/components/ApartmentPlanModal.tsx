@@ -137,6 +137,9 @@ export function ApartmentPlanModal({ initial, busy, onClose, onSave }: Apartment
             <Field label="incc ao mês" hint="ex.: 0,5">
               <PercentInput value={p.inccMensal} onChange={(v) => set("inccMensal", v)} />
             </Field>
+            <Field label="tr ao mês" hint="corrige saldo e parcela · ex.: 0,1">
+              <PercentInput value={p.trMensal} onChange={(v) => set("trMensal", v)} />
+            </Field>
             <Field label="obra executada na assinatura" hint="% — chute, ajuste depois">
               <PercentInput value={p.obraExecutadaNaAssinatura} onChange={(v) => set("obraExecutadaNaAssinatura", v)} />
             </Field>
@@ -157,6 +160,31 @@ export function ApartmentPlanModal({ initial, busy, onClose, onSave }: Apartment
             </Field>
             <Field label="dia do condomínio">
               <DayInput value={p.diaCondominio} onChange={(v) => set("diaCondominio", v)} />
+            </Field>
+          </Group>
+
+          <Group title="amortização extra no banco">
+            <Field label="valor por mês" hint="0 = não amortizar">
+              <MoneyInput value={p.amortizacaoExtra} onChange={(v) => set("amortizacaoExtra", v)} />
+            </Field>
+            <Field label="o que reduzir">
+              <div className="flex gap-1 rounded-xl bg-surface-3 p-1">
+                {(["prazo", "parcela"] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => set("amortizacaoModo", m)}
+                    className={`flex-1 rounded-lg py-1.5 text-sm font-medium lowercase transition-colors ${
+                      p.amortizacaoModo === m ? "bg-surface shadow-sm" : "text-fg-muted"
+                    }`}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+            </Field>
+            <Field label="a partir de" hint="mês · vazio = desde as chaves">
+              <input type="month" className={inputClass} value={p.amortizacaoInicio} onChange={(e) => set("amortizacaoInicio", e.target.value)} />
             </Field>
           </Group>
 

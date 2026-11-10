@@ -6,28 +6,38 @@ import { formatCurrency, formatPercent, monthShortLabel } from "@/lib/format";
 import {
   buildSchedule,
   COMPONENTS,
+  detailedRangeEnd,
   financingFigures,
   isPlanComplete,
+  monthKeyLabel,
   scenarios,
   scheduleRange,
+  simulateAmortization,
+  simulateLoan,
   yearlyAverages,
+  type AmortizationMode,
   type ApartmentPremises,
   type ComponentKey,
   type ScheduleMonth,
 } from "@/lib/apartment";
+import { Brl, KeepRs } from "@/components/ui/Brl";
 
 /** Cor de cada parte do gasto com moradia, reaproveitando os tokens do app. */
-const COMPONENT_COLORS: Record<ComponentKey, string> = {
+export const COMPONENT_COLORS: Record<ComponentKey, string> = {
   aluguel: "var(--fg-subtle)",
   construtora: "var(--cartao)",
   despachante: "var(--diario)",
   jurosObra: "var(--saida)",
   banco: "#2563eb",
+  amortizacao: "#0891b2",
   condominio: "var(--economia)",
 };
 
 /** Referência que os bancos usam para aprovar: parcela até 30% da renda. */
 const BANK_LIMIT = 0.3;
+
+/** Valores prontos do simulador de amortização. */
+const AMORTIZATION_PRESETS = [0, 100, 200, 300, 500, 1000];
 
 interface ApartmentViewProps {
   plan: ApartmentPremises | null;
@@ -36,9 +46,19 @@ interface ApartmentViewProps {
   onEdit: () => void;
   onSync: () => void;
   onDelete: () => void;
+  /** Grava a amortização extra escolhida no simulador nas premissas. */
+  onApplyAmortization: (extra: number, modo: AmortizationMode) => void;
 }
 
-export function ApartmentView({ plan, today, busy, onEdit, onSync, onDelete }: ApartmentViewProps) {
+export function ApartmentView({
+  plan,
+  today,
+  busy,
+  onEdit,
+  onSync,
+  onDelete,
+  onApplyAmortization,
+}: ApartmentViewProps) {
   if (!plan) {
     return (
       <Scroll>
@@ -89,7 +109,17 @@ export function ApartmentView({ plan, today, busy, onEdit, onSync, onDelete }: A
     );
   }
 
-  return <PlanDetails plan={plan} today={today} busy={busy} onEdit={onEdit} onSync={onSync} onDelete={onDelete} />;
+  return (
+    <PlanDetails
+      plan={plan}
+      today={today}
+      busy={busy}
+      onEdit={onEdit}
+      onSync={onSync}
+      onDelete={onDelete}
+      onApplyAmortization={onApplyAmortization}
+    />
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -101,44 +131,58 @@ function PlanDetails({
   onEdit,
   onSync,
   onDelete,
-}: {
-  plan: ApartmentPremises;
-  today: Date;
-  busy: boolean;
-  onEdit: () => void;
-  onSync: () => void;
-  onDelete: () => void;
-}) {
+  onApplyAmortization,
+}: Omit<ApartmentViewProps, "plan"> & { plan: ApartmentPremises }) {
   const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
   const todayStr = `${todayKey}-${String(today.getDate()).padStart(2, "0")}`;
 
-  const { schedule, figures, years, cenarios } = useMemo(() => {
-    const range = scheduleRange(plan);
-    const schedule = buildSchedule(plan, range.from, range.to);
+  const { schedule, detailed, yearly, figures, years, cenarios } = useMemo(() => {
+    const loan = simulateLoan(plan);
+    const range = scheduleRange(plan, loan);
+    const schedule = buildSchedule(plan, range.from, range.to, loan);
+    const detailEnd = detailedRangeEnd(plan);
+    const years = yearlyAverages(schedule);
     return {
       schedule,
+      detailed: schedule.filter((m) => m.key <= detailEnd),
+      yearly: yearlyBars(schedule),
       figures: financingFigures(plan),
-      years: yearlyAverages(schedule),
+      years,
       cenarios: scenarios(plan),
     };
   }, [plan]);
 
+  const [chartScale, setChartScale] = useState<"mes" | "ano">("mes");
+  const [showAllYears, setShowAllYears] = useState(false);
+
   const atual = schedule.find((m) => m.key === todayKey) ?? schedule[0];
-  const pico = schedule.reduce((a, b) => (b.total > a.total ? b : a), schedule[0]);
+  const antesChaves = schedule.filter((m) => m.fase !== "pós-chaves" && m.fase !== "quitado");
+  const pico = (antesChaves.length > 0 ? antesChaves : schedule).reduce((a, b) => (b.total > a.total ? b : a));
   const jurosObraTotal = schedule.reduce((s, m) => s + m.jurosObra, 0);
   const chaves = schedule.find((m) => m.fase === "pós-chaves");
   const mesesAteChaves = chaves ? chaves.index - (atual?.index ?? chaves.index) : 0;
+  const visibleYears = showAllYears ? years : years.slice(0, 10);
+
+  if (!figures) return null;
 
   return (
     <Scroll wide>
       <header className="flex flex-wrap items-end justify-between gap-3 px-1">
         <div className="min-w-0">
           <p className="text-xs lowercase text-fg-subtle">imóvel</p>
-          <h2 className="truncate text-xl font-bold lowercase md:text-2xl">{plan.nome}</h2>
+          <h2 className="truncate text-xl font-bold lowercase md:text-2xl">
+            <KeepRs text={plan.nome} />
+          </h2>
         </div>
         <div className="flex flex-wrap gap-2">
           <ActionButton icon={Pencil} label="premissas" onClick={onEdit} disabled={busy} />
-          <ActionButton icon={RefreshCw} label={busy ? "gerando..." : "lançar no saldo"} onClick={onSync} disabled={busy} accent />
+          <ActionButton
+            icon={RefreshCw}
+            label={busy ? "gerando..." : "lançar no saldo"}
+            onClick={onSync}
+            disabled={busy}
+            accent
+          />
         </div>
       </header>
 
@@ -156,53 +200,109 @@ function PlanDetails({
         />
         <Stat
           label="moradia este mês"
-          value={formatCurrency(atual?.total ?? 0)}
-          hint={plan.rendaBanco > 0 ? `${formatPercent((atual?.pctRenda ?? 0) * 100, 0)} da renda do banco` : "informe a renda do banco"}
+          value={<Brl value={atual?.total ?? 0} />}
+          hint={
+            plan.rendaBanco > 0
+              ? `${formatPercent((atual?.pctRenda ?? 0) * 100, 0)} da renda do banco`
+              : "informe a renda do banco"
+          }
           color={(atual?.pctRenda ?? 0) > BANK_LIMIT ? "var(--saida)" : undefined}
         />
         <Stat
-          label="parcela do banco"
-          value={formatCurrency(figures.primeiraParcela)}
-          hint={`${plan.sistema.toLowerCase()} · ${plan.prazoMeses} meses · com seguros`}
-        />
-        <Stat
           label="pico antes das chaves"
-          value={formatCurrency(pico?.total ?? 0)}
+          value={<Brl value={pico?.total ?? 0} />}
           hint={pico ? `${monthShortLabel(pico.year, pico.month)} · ${formatPercent(pico.pctRenda * 100, 0)} da renda` : undefined}
           color="var(--saida)"
+        />
+        <Stat
+          label="quitação"
+          value={monthKeyLabel(figures.fim)}
+          hint={`${(figures.meses / 12).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} anos de banco${
+            plan.amortizacaoExtra > 0 ? " · com amortização" : ""
+          }`}
         />
       </section>
 
       <Deadlines prazos={plan.prazos} todayStr={todayStr} />
 
+      <LoanPanel plan={plan} figures={figures} jurosObraTotal={jurosObraTotal} />
+
+      <AmortizationPanel plan={plan} busy={busy} onApply={onApplyAmortization} />
+
       <Panel
-        title="gasto com moradia mês a mês"
-        info="aluguel até as chaves, construtora, despachante, juros de obra (só juros sobre o que o banco já liberou, não abate a dívida), parcela do banco depois das chaves e condomínio. a linha tracejada é 30% da renda do banco, o limite que a caixa usa para aprovar."
+        title="gasto com moradia"
+        info="aluguel até as chaves, construtora, despachante, juros de obra (só juros sobre o que o banco já liberou, não abate a dívida), parcela do banco com seguros, amortização extra e condomínio. a linha tracejada é 30% da renda do banco, o limite que a caixa usa para aprovar. na escala anual cada barra é a média mensal do ano."
+        aside={
+          <div className="flex gap-1 rounded-full bg-surface-3 p-0.5 text-xs lowercase">
+            {(
+              [
+                ["mes", "mês a mês"],
+                ["ano", "financiamento inteiro"],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setChartScale(key)}
+                className={`rounded-full px-3 py-1 transition-colors ${
+                  chartScale === key ? "bg-surface text-fg shadow-sm" : "text-fg-muted"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        }
       >
-        <ScheduleChart schedule={schedule} renda={plan.rendaBanco} todayKey={todayKey} />
+        {chartScale === "mes" ? (
+          <ScheduleChart
+            bars={detailed}
+            renda={plan.rendaBanco}
+            highlightKey={todayKey}
+            labelOf={(m) => monthShortLabel(m.year, m.month)}
+            tickOf={(m) => (m.month === 0 ? String(m.year) : null)}
+          />
+        ) : (
+          <ScheduleChart
+            bars={yearly}
+            renda={plan.rendaBanco}
+            highlightKey={String(today.getFullYear())}
+            labelOf={(m) => `${m.year} · média por mês`}
+            tickOf={(m) => (m.year % 5 === 0 ? String(m.year) : null)}
+          />
+        )}
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
-          {COMPONENTS.map((c) => (
+          {COMPONENTS.filter((c) => c.key !== "amortizacao" || plan.amortizacaoExtra > 0).map((c) => (
             <span key={c.key} className="flex items-center gap-1.5 text-xs lowercase text-fg-muted">
               <span className="size-2 rounded-full" style={{ background: COMPONENT_COLORS[c.key] }} />
               {c.label}
             </span>
           ))}
         </div>
-        <p className="mt-3 text-xs lowercase text-fg-subtle">
-          juros de obra no total: {formatCurrency(jurosObraTotal)} · total pago ao banco em {Math.round(plan.prazoMeses / 12)} anos (sem seguros): {formatCurrency(figures.totalBanco)}
-        </p>
       </Panel>
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <Panel title="média por ano" info="média mensal do gasto com moradia em cada ano e quanto isso pesa na renda que o banco considera.">
+        <Panel
+          title="média por ano"
+          info="média mensal do gasto com moradia em cada ano, quanto isso pesa na renda que o banco considera e quanto ainda se deve ao banco no fim do ano."
+        >
           <ul className="-mx-1 flex flex-col">
-            {years.map((y) => {
+            {visibleYears.map((y) => {
               const over = y.pctRenda > BANK_LIMIT;
               return (
                 <li key={y.year} className="flex items-center gap-3 rounded-lg px-1 py-2 text-sm">
                   <span className="w-10 shrink-0 font-semibold tabular">{y.year}</span>
-                  <span className="min-w-0 flex-1 truncate text-xs lowercase text-fg-subtle">{y.fases.join(" → ")}</span>
-                  <span className="shrink-0 tabular">{formatCurrency(y.media)}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-xs lowercase text-fg-subtle">{y.fases.join(" → ")}</span>
+                    {y.saldoDevedor > 0 && (
+                      <span className="block text-[11px] lowercase text-fg-subtle tabular">
+                        deve <Brl value={y.saldoDevedor} />
+                      </span>
+                    )}
+                  </span>
+                  <span className="shrink-0 tabular">
+                    <Brl value={y.media} />
+                  </span>
                   {plan.rendaBanco > 0 && (
                     <span
                       className="w-11 shrink-0 text-right text-xs font-semibold tabular"
@@ -215,6 +315,15 @@ function PlanDetails({
               );
             })}
           </ul>
+          {years.length > 10 && (
+            <button
+              type="button"
+              onClick={() => setShowAllYears((v) => !v)}
+              className="mt-1 w-full rounded-full py-2 text-sm lowercase text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg"
+            >
+              {showAllYears ? "ver menos" : `ver os ${years.length} anos`}
+            </button>
+          )}
         </Panel>
 
         <Panel title="e se der ruim?" info="cenários recalculados com as premissas atuais. o valor é o impacto em reais de cada situação.">
@@ -223,9 +332,13 @@ function PlanDetails({
               <li key={c.titulo} className="rounded-xl bg-surface-2 px-3 py-2.5">
                 <p className="flex items-baseline justify-between gap-3 text-sm">
                   <span className="font-medium lowercase">{c.titulo}</span>
-                  <span className="shrink-0 font-semibold tabular">{formatCurrency(c.impacto)}</span>
+                  <span className="shrink-0 font-semibold tabular">
+                    <Brl value={c.impacto} />
+                  </span>
                 </p>
-                <p className="mt-0.5 text-xs lowercase text-fg-muted">{c.explicacao}</p>
+                <p className="mt-0.5 text-xs lowercase text-fg-muted">
+                  <KeepRs text={c.explicacao} />
+                </p>
               </li>
             ))}
           </ul>
@@ -238,16 +351,24 @@ function PlanDetails({
             {plan.contrato.map((c) => (
               <li key={c.item} className="flex items-start gap-3 border-b border-border-base py-2.5 text-sm last:border-0">
                 <span className="min-w-0 flex-1">
-                  <span className="block lowercase">{c.item}</span>
-                  {c.nota && <span className="block text-xs lowercase text-fg-subtle">{c.nota}</span>}
+                  <span className="block lowercase">
+                    <KeepRs text={c.item} />
+                  </span>
+                  {c.nota && (
+                    <span className="block text-xs lowercase text-fg-subtle">
+                      <KeepRs text={c.nota} />
+                    </span>
+                  )}
                 </span>
-                <span className="shrink-0 font-semibold tabular">{formatCurrency(c.valor)}</span>
+                <span className="shrink-0 font-semibold tabular">
+                  <Brl value={c.valor} />
+                </span>
               </li>
             ))}
             <li className="flex items-baseline justify-between pt-3 text-sm">
               <span className="lowercase text-fg-muted">total</span>
               <span className="font-bold tabular">
-                {formatCurrency(plan.contrato.reduce((s, c) => s + c.valor, 0))}
+                <Brl value={plan.contrato.reduce((s, c) => s + c.valor, 0)} />
               </span>
             </li>
           </ul>
@@ -256,8 +377,8 @@ function PlanDetails({
 
       <div className="flex flex-col items-center gap-2 pb-4">
         <p className="max-w-md text-center text-xs lowercase text-fg-subtle">
-          “lançar no saldo” refaz as saídas do apê de hoje em diante (10 anos à frente) a partir das
-          premissas. lançamentos que você fez à mão e os do apê que já passaram não mudam.
+          “lançar no saldo” refaz as saídas do apê de hoje até a quitação ({monthKeyLabel(figures.fim)})
+          a partir das premissas. lançamentos que você fez à mão e os do apê que já passaram não mudam.
         </p>
         <button
           type="button"
@@ -273,6 +394,244 @@ function PlanDetails({
 }
 
 /* ------------------------------------------------------------------ */
+/* Financiamento e amortização                                         */
+/* ------------------------------------------------------------------ */
+
+function LoanPanel({
+  plan,
+  figures,
+  jurosObraTotal,
+}: {
+  plan: ApartmentPremises;
+  figures: NonNullable<ReturnType<typeof financingFigures>>;
+  jurosObraTotal: number;
+}) {
+  const trAno = (Math.pow(1 + plan.trMensal, 12) - 1) * 100;
+
+  return (
+    <Panel
+      title="o financiamento inteiro"
+      info="simulação mês a mês do saldo devedor depois das chaves. todo mês o saldo e a parcela são corrigidos pela tr, como no contrato price/tr da caixa. a tr muda com a selic: confira a real no extrato quando o contrato começar e ajuste nas premissas."
+    >
+      <dl className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Figure label="valor financiado" value={<Brl value={figures.principal} />} hint="corrigido pelo incc até a assinatura" />
+        <Figure
+          label="parcela do banco"
+          value={<Brl value={figures.primeiraParcela} />}
+          hint={
+            plan.trMensal > 0 && plan.amortizacaoExtra === 0
+              ? `sobe com a tr até ~${formatCurrency(figures.ultimaParcela)}`
+              : `${plan.sistema.toLowerCase()} · com seguros`
+          }
+        />
+        <Figure label="juros ao banco" value={<Brl value={figures.juros} />} hint={`mais ${formatCurrency(jurosObraTotal)} de juros de obra`} />
+        <Figure
+          label="total pago ao banco"
+          value={<Brl value={figures.totalPago} />}
+          hint={`${figures.meses} parcelas, seguros incluídos`}
+          color="var(--saida)"
+        />
+      </dl>
+      <p className="mt-4 flex gap-1.5 rounded-xl bg-surface-2 px-3 py-2.5 text-xs lowercase text-fg-muted">
+        <Info size={13} className="mt-0.5 shrink-0" />
+        <span>
+          tr de {formatPercent(plan.trMensal * 100, 2)} ao mês (~{formatPercent(trAno, 1)} ao ano) e seguros fixos
+          em <Brl value={plan.seguros} /> por mês. na prática o seguro de vida (mip) sobe com a idade, então o
+          total real tende a ser um pouco maior.
+        </span>
+      </p>
+    </Panel>
+  );
+}
+
+function AmortizationPanel({
+  plan,
+  busy,
+  onApply,
+}: {
+  plan: ApartmentPremises;
+  busy: boolean;
+  onApply: (extra: number, modo: AmortizationMode) => void;
+}) {
+  const [extra, setExtra] = useState(plan.amortizacaoExtra || 200);
+  const [modo, setModo] = useState<AmortizationMode>(plan.amortizacaoModo);
+
+  const result = useMemo(() => simulateAmortization(plan, extra, modo), [plan, extra, modo]);
+  const table = useMemo(
+    () => AMORTIZATION_PRESETS.map((v) => simulateAmortization(plan, v, modo)),
+    [plan, modo],
+  );
+  const base = table[0];
+  const salvo = plan.amortizacaoExtra === extra && plan.amortizacaoModo === modo;
+
+  return (
+    <Panel
+      title="simulador de amortização"
+      info="quanto pagar a mais por mês direto no saldo devedor, a partir das chaves. “reduzir prazo” mantém a parcela e antecipa a quitação: é o que mais economiza juros. “reduzir parcela” mantém o prazo e faz a parcela cair. no começo da price quase toda a parcela é juros, por isso amortizar cedo rende muito mais."
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        {AMORTIZATION_PRESETS.map((v) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => setExtra(v)}
+            className={`rounded-full border px-3 py-1.5 text-sm tabular transition-colors ${
+              extra === v ? "border-transparent bg-brand text-brand-fg" : "border-border-base hover:bg-surface-2"
+            }`}
+          >
+            {v === 0 ? "nada" : <Brl value={v} />}
+          </button>
+        ))}
+        <input
+          inputMode="numeric"
+          aria-label="Outro valor"
+          placeholder="outro"
+          value={AMORTIZATION_PRESETS.includes(extra) ? "" : formatCurrency(extra).replace("R$", "").trim()}
+          onChange={(e) => setExtra(Number(e.target.value.replace(/\D/g, "").slice(0, 9) || "0") / 100)}
+          className="w-28 rounded-full border border-border-base bg-surface-2 px-3 py-1.5 text-sm tabular outline-none placeholder:lowercase placeholder:text-fg-subtle focus:border-border-strong"
+        />
+        <div className="ml-auto flex gap-1 rounded-full bg-surface-3 p-0.5 text-xs lowercase">
+          {(
+            [
+              ["prazo", "reduzir prazo"],
+              ["parcela", "reduzir parcela"],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setModo(key)}
+              className={`rounded-full px-3 py-1 transition-colors ${
+                modo === key ? "bg-surface text-fg shadow-sm" : "text-fg-muted"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {result && (
+        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <Figure
+            label="quita em"
+            value={monthKeyLabel(result.summary.fim)}
+            hint={
+              result.mesesEconomizados > 0
+                ? `${(result.mesesEconomizados / 12).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} anos antes`
+                : "no prazo do contrato"
+            }
+            color={result.mesesEconomizados > 0 ? "var(--entrada)" : undefined}
+          />
+          <Figure
+            label="juros economizados"
+            value={<Brl value={result.jurosEconomizados} />}
+            hint={`paga ${formatCurrency(result.summary.juros)} de juros`}
+            color={result.jurosEconomizados > 0 ? "var(--entrada)" : undefined}
+          />
+          <Figure label="total pago" value={<Brl value={result.summary.totalPago} />} hint="parcelas + extras + seguros" />
+          <Figure
+            label={modo === "prazo" ? "parcela" : "parcela no fim"}
+            value={<Brl value={modo === "prazo" ? result.summary.primeiraParcela : result.summary.ultimaParcela} />}
+            hint={extra > 0 ? `+ ${formatCurrency(extra)} de amortização por mês` : "sem amortizar"}
+          />
+        </div>
+      )}
+
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full min-w-[26rem] text-sm">
+          <thead>
+            <tr className="text-left text-xs lowercase text-fg-subtle">
+              <th className="py-1.5 font-normal">extra por mês</th>
+              <th className="py-1.5 font-normal">quita em</th>
+              <th className="py-1.5 text-right font-normal">juros</th>
+              <th className="py-1.5 text-right font-normal">economia</th>
+            </tr>
+          </thead>
+          <tbody>
+            {table.map((r) =>
+              r ? (
+                <tr
+                  key={r.extra}
+                  onClick={() => setExtra(r.extra)}
+                  className={`cursor-pointer border-t border-border-base tabular transition-colors hover:bg-surface-2 ${
+                    r.extra === extra ? "font-semibold" : ""
+                  }`}
+                >
+                  <td className="py-2">{r.extra === 0 ? "nada" : <Brl value={r.extra} />}</td>
+                  <td className="py-2">
+                    {monthKeyLabel(r.summary.fim)}
+                    <span className="ml-1 text-xs font-normal text-fg-subtle">
+                      ({(r.summary.meses / 12).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} anos)
+                    </span>
+                  </td>
+                  <td className="py-2 text-right">
+                    <Brl value={r.summary.juros} />
+                  </td>
+                  <td className="py-2 text-right" style={{ color: base && r.jurosEconomizados > 0 ? "var(--entrada)" : undefined }}>
+                    {r.jurosEconomizados > 0 ? <Brl value={r.jurosEconomizados} /> : "—"}
+                  </td>
+                </tr>
+              ) : null,
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs lowercase text-fg-subtle">
+          {plan.amortizacaoExtra > 0 ? (
+            <>
+              no plano: <Brl value={plan.amortizacaoExtra} /> por mês, reduzindo {plan.amortizacaoModo}.
+            </>
+          ) : (
+            "o plano ainda não tem amortização extra."
+          )}
+        </p>
+        <button
+          type="button"
+          disabled={busy || salvo}
+          onClick={() => onApply(extra, modo)}
+          className="rounded-full border border-border-base px-4 py-2 text-sm font-medium lowercase transition-colors hover:bg-surface-2 disabled:opacity-50"
+        >
+          {salvo ? "já está no plano" : extra === 0 ? "tirar amortização do plano" : "usar no plano"}
+        </button>
+      </div>
+    </Panel>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+
+/** Um "mês médio" por ano, no formato do cronograma, para a escala anual do gráfico. */
+function yearlyBars(schedule: ScheduleMonth[]): ScheduleMonth[] {
+  const byYear = new Map<number, ScheduleMonth[]>();
+  for (const m of schedule) {
+    const bucket = byYear.get(m.year);
+    if (bucket) bucket.push(m);
+    else byYear.set(m.year, [m]);
+  }
+  return [...byYear.entries()].map(([year, months]) => {
+    const avg = (pick: (m: ScheduleMonth) => number) => months.reduce((s, m) => s + pick(m), 0) / months.length;
+    const last = months[months.length - 1];
+    return {
+      ...last,
+      key: String(year),
+      year,
+      month: 0,
+      aluguel: avg((m) => m.aluguel),
+      construtora: avg((m) => m.construtora),
+      despachante: avg((m) => m.despachante),
+      jurosObra: avg((m) => m.jurosObra),
+      banco: avg((m) => m.banco),
+      amortizacao: avg((m) => m.amortizacao),
+      condominio: avg((m) => m.condominio),
+      total: avg((m) => m.total),
+      apenasApe: avg((m) => m.apenasApe),
+      pctRenda: avg((m) => m.pctRenda),
+    };
+  });
+}
 
 function Deadlines({ prazos, todayStr }: { prazos: ApartmentPremises["prazos"]; todayStr: string }) {
   const [showPast, setShowPast] = useState(false);
@@ -317,12 +676,16 @@ function Deadlines({ prazos, todayStr }: { prazos: ApartmentPremises["prazos"]; 
                       : { background: "var(--surface-3)" }
                 }
               >
-                <span className="text-sm font-bold leading-none tabular">{d}/{m}</span>
+                <span className="text-sm font-bold leading-none tabular">
+                  {d}/{m}
+                </span>
                 <span className="text-[10px] leading-tight opacity-80">{y}</span>
               </span>
               <span className="min-w-0 flex-1">
                 <span className="flex items-baseline justify-between gap-2">
-                  <span className="text-sm font-medium lowercase">{p.titulo}</span>
+                  <span className="text-sm font-medium lowercase">
+                    <KeepRs text={p.titulo} />
+                  </span>
                   <span className="shrink-0 text-xs lowercase tabular text-fg-subtle">
                     {passed ? "passou" : days === 0 ? "hoje" : `${days} dias`}
                   </span>
@@ -330,7 +693,9 @@ function Deadlines({ prazos, todayStr }: { prazos: ApartmentPremises["prazos"]; 
                 {p.consequencia && (
                   <span className="mt-0.5 flex gap-1 text-xs lowercase text-fg-muted">
                     {soon && <TriangleAlert size={12} className="mt-0.5 shrink-0" style={{ color: "var(--saida)" }} />}
-                    {p.consequencia}
+                    <span>
+                      <KeepRs text={p.consequencia} />
+                    </span>
                   </span>
                 )}
               </span>
@@ -343,19 +708,24 @@ function Deadlines({ prazos, todayStr }: { prazos: ApartmentPremises["prazos"]; 
 }
 
 function ScheduleChart({
-  schedule,
+  bars,
   renda,
-  todayKey,
+  highlightKey,
+  labelOf,
+  tickOf,
 }: {
-  schedule: ScheduleMonth[];
+  bars: ScheduleMonth[];
   renda: number;
-  todayKey: string;
+  highlightKey: string;
+  labelOf: (m: ScheduleMonth) => string;
+  tickOf: (m: ScheduleMonth) => string | null;
 }) {
   const [hover, setHover] = useState<ScheduleMonth | null>(null);
   const limite = renda * BANK_LIMIT;
-  const max = Math.max(...schedule.map((m) => m.total), limite, 1) * 1.08;
+  const max = Math.max(...bars.map((m) => m.total), limite, 1) * 1.08;
   const height = 180;
-  const shown = hover ?? schedule.find((m) => m.key === todayKey) ?? schedule[0];
+  const minBar = bars.length > 60 ? 6 : 12;
+  const shown = hover ?? bars.find((m) => m.key === highlightKey) ?? bars[0];
 
   return (
     <div>
@@ -363,20 +733,23 @@ function ScheduleChart({
         {shown && (
           <>
             <span className="font-semibold text-fg">
-              {monthShortLabel(shown.year, shown.month)} · {formatCurrency(shown.total)}
+              {labelOf(shown)} · <Brl value={shown.total} />
             </span>
             {renda > 0 && <span> · {formatPercent(shown.pctRenda * 100, 0)} da renda</span>}
             <span> · {shown.fase}</span>
             <br />
-            {COMPONENTS.filter((c) => shown[c.key] > 0)
-              .map((c) => `${c.label} ${formatCurrency(shown[c.key])}`)
-              .join(" · ")}
+            {COMPONENTS.filter((c) => shown[c.key] > 0).map((c, i) => (
+              <span key={c.key}>
+                {i > 0 && " · "}
+                {c.label} <Brl value={shown[c.key]} />
+              </span>
+            ))}
           </>
         )}
       </div>
 
       <div className="scrollbar-thin overflow-x-auto pb-2">
-        <div className="relative flex items-end gap-px" style={{ height, minWidth: schedule.length * 7 }}>
+        <div className="relative flex items-end gap-px" style={{ height, minWidth: bars.length * (minBar + 1) }}>
           {renda > 0 && (
             <div
               className="pointer-events-none absolute inset-x-0 z-10 border-t border-dashed"
@@ -386,45 +759,44 @@ function ScheduleChart({
             </div>
           )}
 
-          {schedule.map((m) => {
-            const isToday = m.key === todayKey;
-            const isYearStart = m.month === 0;
-            return (
+          {bars.map((m) => (
+            <div
+              key={m.key}
+              className="relative flex h-full flex-1 cursor-pointer flex-col justify-end"
+              style={{ minWidth: minBar }}
+              onMouseEnter={() => setHover(m)}
+              onMouseLeave={() => setHover(null)}
+              onClick={() => setHover(m)}
+            >
+              {tickOf(m) && <span className="absolute left-0 h-full border-l border-border-base" aria-hidden />}
               <div
-                key={m.key}
-                className="relative flex h-full min-w-[6px] flex-1 cursor-pointer flex-col justify-end"
-                onMouseEnter={() => setHover(m)}
-                onMouseLeave={() => setHover(null)}
-                onClick={() => setHover(m)}
+                className="flex w-full flex-col-reverse overflow-hidden rounded-t-[2px]"
+                style={{
+                  height: (m.total / max) * height,
+                  outline: hover?.key === m.key || m.key === highlightKey ? "1.5px solid var(--fg)" : undefined,
+                }}
               >
-                {isYearStart && (
-                  <span className="absolute -bottom-0 left-0 h-full border-l border-border-base" aria-hidden />
+                {COMPONENTS.map((c) =>
+                  m[c.key] > 0 ? (
+                    <div
+                      key={c.key}
+                      style={{ height: `${(m[c.key] / m.total) * 100}%`, background: COMPONENT_COLORS[c.key] }}
+                    />
+                  ) : null,
                 )}
-                <div
-                  className="flex w-full flex-col-reverse overflow-hidden rounded-t-[2px]"
-                  style={{
-                    height: (m.total / max) * height,
-                    outline: hover?.key === m.key || isToday ? "1.5px solid var(--fg)" : undefined,
-                  }}
-                >
-                  {COMPONENTS.map((c) =>
-                    m[c.key] > 0 ? (
-                      <div key={c.key} style={{ height: `${(m[c.key] / m.total) * 100}%`, background: COMPONENT_COLORS[c.key] }} />
-                    ) : null,
-                  )}
-                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-px" style={{ minWidth: bars.length * (minBar + 1) }}>
+          {bars.map((m) => {
+            const tick = tickOf(m);
+            return (
+              <div key={m.key} className="relative h-5 flex-1" style={{ minWidth: minBar }}>
+                {tick && <span className="absolute left-0 top-1 text-[10px] tabular text-fg-subtle">{tick}</span>}
               </div>
             );
           })}
-        </div>
-        <div className="flex gap-px" style={{ minWidth: schedule.length * 7 }}>
-          {schedule.map((m) => (
-            <div key={m.key} className="relative min-w-[6px] flex-1">
-              {m.month === 0 && (
-                <span className="absolute left-0 top-1 text-[10px] tabular text-fg-subtle">{m.year}</span>
-              )}
-            </div>
-          ))}
         </div>
       </div>
     </div>
@@ -455,7 +827,7 @@ function Panel({
   const [infoOpen, setInfoOpen] = useState(false);
   return (
     <section className="min-w-0 rounded-2xl border border-border-base bg-surface p-4 md:p-5">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <h2 className="flex items-center gap-1.5 text-base font-semibold lowercase">
           {title}
           <button
@@ -482,14 +854,46 @@ function Panel({
   );
 }
 
-function Stat({ label, value, hint, color }: { label: string; value: string; hint?: string; color?: string }) {
+function Stat({
+  label,
+  value,
+  hint,
+  color,
+}: {
+  label: string;
+  value: React.ReactNode;
+  hint?: React.ReactNode;
+  color?: string;
+}) {
   return (
     <div className="min-w-0 rounded-2xl border border-border-base bg-surface p-4">
       <p className="text-xs font-medium lowercase text-fg-muted">{label}</p>
-      <p className="mt-1.5 truncate text-lg font-bold lowercase tabular md:text-xl" style={color ? { color } : undefined}>
+      <p className="mt-1.5 truncate text-lg font-bold tabular md:text-xl" style={color ? { color } : undefined}>
         {value}
       </p>
-      {hint && <p className="mt-1 text-[11px] lowercase text-fg-subtle">{hint}</p>}
+      {hint && <p className="mt-1 text-[11px] text-fg-subtle">{hint}</p>}
+    </div>
+  );
+}
+
+function Figure({
+  label,
+  value,
+  hint,
+  color,
+}: {
+  label: string;
+  value: React.ReactNode;
+  hint?: string;
+  color?: string;
+}) {
+  return (
+    <div className="min-w-0 rounded-xl bg-surface-2 px-3 py-2.5">
+      <dt className="text-[11px] lowercase text-fg-muted">{label}</dt>
+      <dd className="mt-0.5 truncate text-base font-bold tabular" style={color ? { color } : undefined}>
+        {value}
+      </dd>
+      {hint && <p className="mt-0.5 text-[11px] text-fg-subtle">{hint}</p>}
     </div>
   );
 }
