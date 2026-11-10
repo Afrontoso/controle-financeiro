@@ -20,6 +20,22 @@ export interface Transaction {
   groupId?: string;
   /** Só em lançamentos de cartão: a cobrança vai para o vencimento da fatura. */
   cardId?: string;
+  /** Economia guardada neste cofre, ou entrada resgatada dele. */
+  vaultId?: string;
+  /** Gerado por um plano (ex.: "apto:banco"); ausente nos manuais. */
+  source?: string;
+}
+
+export type VaultKind = "reserva" | "cofre";
+
+export interface Vault {
+  id: string;
+  name: string;
+  /** Meta em reais; null = sem meta. */
+  goal: number | null;
+  /** O que já estava guardado quando o cofre foi criado no app. */
+  initial: number;
+  kind: VaultKind;
 }
 
 export interface Budget {

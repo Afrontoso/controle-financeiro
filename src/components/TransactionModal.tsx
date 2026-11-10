@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Banknote, CalendarDays, CreditCard, Pencil, Repeat } from "lucide-react";
+import { Banknote, CalendarDays, CreditCard, Pencil, PiggyBank, Repeat } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
 import { TypeBadge } from "@/components/ui/TypeBadge";
@@ -13,6 +13,7 @@ import {
   type Card,
   type Transaction,
   type TxType,
+  type Vault,
 } from "@/lib/types";
 import type { TransactionPayload } from "@/hooks/useFinanceData";
 
@@ -45,6 +46,9 @@ interface TransactionModalProps {
   editing: Transaction | null;
   defaultType?: TxType;
   cards: Card[];
+  vaults?: Vault[];
+  /** Cofre pré-selecionado ao criar (ex.: botão "guardar" de um cofre). */
+  defaultVaultId?: string | null;
   submitting: boolean;
   onSubmit: (payload: TransactionPayload) => void;
 }
@@ -55,6 +59,8 @@ export function TransactionModal({
   editing,
   defaultType = "saida",
   cards,
+  vaults = [],
+  defaultVaultId = null,
   submitting,
   onSubmit,
 }: TransactionModalProps) {
@@ -68,6 +74,7 @@ export function TransactionModal({
   const [cardId, setCardId] = useState<string | null>(
     () => editing?.cardId ?? cards[0]?.id ?? null,
   );
+  const [vaultId, setVaultId] = useState<string | null>(() => editing?.vaultId ?? defaultVaultId);
   const [repeats, setRepeats] = useState(false);
   const [frequency, setFrequency] = useState<Frequency>("mensal");
   const [count, setCount] = useState("2");
@@ -96,6 +103,7 @@ export function TransactionModal({
       amount,
       description: description.trim(),
       cardId: type === "cartao" ? cardId : null,
+      vaultId: type === "investimento" || type === "entrada" ? vaultId : null,
       repeatFrequency: repeats ? frequency : undefined,
       repeatCount: repeats && !indeterminate ? Number(count) : undefined,
       isIndeterminate: repeats && indeterminate,
@@ -160,6 +168,35 @@ export function TransactionModal({
               </div>
             </Row>
           )}
+
+          {(type === "investimento" || type === "entrada") && vaults.length > 0 && (
+              <Row icon={PiggyBank} align="start">
+                <div className="flex-1">
+                  <Select
+                    value={vaultId}
+                    options={[
+                      {
+                        value: null as string | null,
+                        label: type === "investimento" ? "sem cofre" : "não veio de cofre",
+                      },
+                      ...vaults.map((vault) => ({
+                        value: vault.id as string | null,
+                        label: `${type === "investimento" ? "guardar em" : "resgatado de"} ${vault.name}`,
+                      })),
+                    ]}
+                    onChange={setVaultId}
+                    ariaLabel="Cofre"
+                  />
+                  {vaultId && (
+                    <p className="mt-2 text-xs lowercase text-fg-subtle">
+                      {type === "investimento"
+                        ? "sai do saldo e entra no cofre."
+                        : "sai do cofre e volta para o saldo."}
+                    </p>
+                  )}
+                </div>
+              </Row>
+            )}
 
           <Row icon={Pencil}>
             <input

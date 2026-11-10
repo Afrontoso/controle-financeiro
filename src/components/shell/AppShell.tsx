@@ -3,6 +3,7 @@
 import { useState } from "react";
 import {
   Building2,
+  PiggyBank,
   CalendarDays,
   ChevronLeft,
   Gauge,
@@ -22,6 +23,7 @@ export type ViewKey =
   | "horizonte"
   | "orcamentos"
   | "apartamento"
+  | "cofres"
   | "cartoes"
   | "menu";
 
@@ -41,6 +43,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: "horizonte", label: "horizonte", icon: CalendarDays, desktopOnly: true },
   { key: "orcamentos", label: "orçamentos", icon: Target },
   { key: "apartamento", label: "apartamento", icon: Building2, desktopOnly: true },
+  { key: "cofres", label: "cofres", icon: PiggyBank, desktopOnly: true },
 ];
 
 interface AppShellProps {
@@ -216,7 +219,11 @@ function MobileTabBar({ view, onViewChange, onAdd }: TabBarProps) {
   const right = mobileItems.slice(2);
   // Cartões e horizonte nascem do menu no celular: a aba do menu fica acesa.
   const menuActive =
-    view === "menu" || view === "cartoes" || view === "horizonte" || view === "apartamento";
+    view === "menu" ||
+    view === "cartoes" ||
+    view === "horizonte" ||
+    view === "apartamento" ||
+    view === "cofres";
 
   return (
     <nav

@@ -67,7 +67,7 @@ export async function PATCH(
         }
 
         const data = await request.json();
-        const { description, amount, type, date, cardId, updateAll } = data;
+        const { description, amount, type, date, cardId, vaultId, updateAll } = data;
 
         const transaction = await prisma.transaction.findFirst({
             where: { id, userId },
@@ -90,6 +90,16 @@ export async function PATCH(
             } else {
                 const card = await prisma.card.findFirst({ where: { id: cardId, userId }, select: { id: true } });
                 updateData.cardId = card?.id ?? null;
+            }
+        }
+
+        if (vaultId !== undefined) {
+            // Mesma regra do cadastro: cofre só em economia ou entrada, e do próprio usuário.
+            if (vaultId === null || (type !== "investimento" && type !== "entrada")) {
+                updateData.vaultId = null;
+            } else {
+                const vault = await prisma.vault.findFirst({ where: { id: vaultId, userId }, select: { id: true } });
+                updateData.vaultId = vault?.id ?? null;
             }
         }
 

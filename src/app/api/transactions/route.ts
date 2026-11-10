@@ -37,7 +37,7 @@ export async function POST(request: Request) {
 
         const data = await request.json();
 
-        const { date, description, amount, isForecast, category, type, cardId, repeatCount, repeatFrequency, isIndeterminate } = data;
+        const { date, description, amount, isForecast, category, type, cardId, vaultId, repeatCount, repeatFrequency, isIndeterminate } = data;
         const baseDate = new Date(date);
 
         // Só vincula um cartão que seja do próprio usuário.
@@ -45,6 +45,13 @@ export async function POST(request: Request) {
         if (cardId) {
             const card = await prisma.card.findFirst({ where: { id: cardId, userId }, select: { id: true } });
             linkedCardId = card?.id ?? null;
+        }
+
+        // Cofre só em economia (guardar) ou entrada (resgatar), e só do próprio usuário.
+        let linkedVaultId: string | null = null;
+        if (vaultId && (type === "investimento" || type === "entrada")) {
+            const vault = await prisma.vault.findFirst({ where: { id: vaultId, userId }, select: { id: true } });
+            linkedVaultId = vault?.id ?? null;
         }
 
         // Handle repetition
@@ -70,6 +77,7 @@ export async function POST(request: Request) {
             category: category,
             groupId: groupId,
             cardId: linkedCardId,
+            vaultId: linkedVaultId,
             userId: userId
         }];
 
@@ -94,6 +102,7 @@ export async function POST(request: Request) {
                     category: category,
                     groupId: groupId,
                     cardId: linkedCardId,
+                    vaultId: linkedVaultId,
                     userId: userId
                 });
             }

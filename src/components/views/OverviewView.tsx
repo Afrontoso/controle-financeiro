@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Building2, Check, ChevronRight, CreditCard, Info, TriangleAlert } from "lucide-react";
+import { Building2, Check, ChevronRight, CreditCard, Info, PiggyBank, TriangleAlert } from "lucide-react";
 import { formatCurrency, formatDayMonth, formatPercent } from "@/lib/format";
 import {
   buildSchedule,
@@ -21,6 +21,7 @@ import {
   type SavingsTotal,
 } from "@/lib/ledger";
 import type { Card } from "@/lib/types";
+import type { LivingCost, VaultBalance } from "@/lib/vaults";
 import { Brl, KeepRs } from "@/components/ui/Brl";
 
 /** Quantos dias à frente uma conta conta como "vence logo". */
@@ -40,6 +41,10 @@ interface OverviewViewProps {
   onSelectDay: (dateStr: string) => void;
   onOpenMonth: (year: number, month: number) => void;
   onOpenApartment: () => void;
+  onOpenVaults: () => void;
+  /** Saldo da reserva de emergência, se houver um cofre marcado como tal. */
+  reserve: VaultBalance | null;
+  livingCost: LivingCost;
 }
 
 export function OverviewView({
@@ -51,6 +56,9 @@ export function OverviewView({
   onSelectDay,
   onOpenMonth,
   onOpenApartment,
+  onOpenVaults,
+  reserve,
+  livingCost,
 }: OverviewViewProps) {
   const breakdowns = useMemo(() => months.map(breakdownMonth), [months]);
   const current = months[0];
@@ -75,7 +83,13 @@ export function OverviewView({
           className="lg:col-span-2 lg:row-span-2"
         />
         <CardsCard forecasts={forecasts} />
-        <EconomiasCard summary={summary} savings={savings} />
+        <EconomiasCard
+          summary={summary}
+          savings={savings}
+          reserve={reserve}
+          livingCost={livingCost}
+          onOpenVaults={onOpenVaults}
+        />
         {hasPlan && plan && (
           <MoradiaCard plan={plan} summary={summary} onOpen={onOpenApartment} />
         )}
@@ -379,19 +393,68 @@ function CardsCard({ forecasts }: { forecasts: CardForecast[] }) {
   );
 }
 
-function EconomiasCard({ summary, savings }: { summary: MonthBreakdown; savings: SavingsTotal }) {
+function EconomiasCard({
+  summary,
+  savings,
+  reserve,
+  livingCost,
+  onOpenVaults,
+}: {
+  summary: MonthBreakdown;
+  savings: SavingsTotal;
+  reserve: VaultBalance | null;
+  livingCost: LivingCost;
+  onOpenVaults: () => void;
+}) {
   const percent = summary.entradas > 0 ? (summary.economias / summary.entradas) * 100 : 0;
+  const meses = reserve && livingCost.media > 0 ? reserve.saldo / livingCost.media : null;
 
   return (
     <Panel
-      title="economias"
-      info="tudo o que você lançou como economia até hoje, somando todos os anos. o que já está agendado para datas futuras fica de fora, porque ainda não foi guardado. embaixo, quanto deste mês vai para economias."
+      title={reserve ? "reserva de emergência" : "economias"}
+      info={
+        reserve
+          ? "saldo do cofre marcado como reserva: o que estava guardado quando você criou o cofre, mais o que guardou nele, menos o que resgatou. “segura” é quantos meses do seu custo de vida médio (últimos 3 meses) ela cobre. embaixo, quanto deste mês vai para economias."
+          : "tudo o que você lançou como economia até hoje, somando todos os anos. o que já está agendado para datas futuras fica de fora, porque ainda não foi guardado. embaixo, quanto deste mês vai para economias."
+      }
+      aside={
+        <button type="button" onClick={onOpenVaults} className="flex items-center gap-1 text-xs lowercase text-fg-subtle hover:text-fg">
+          <PiggyBank size={13} /> cofres
+        </button>
+      }
     >
-      <Money value={savings.guardado} color="var(--economia)" big />
-      <p className="mt-0.5 text-xs lowercase text-fg-subtle">
-        guardado até hoje
-        {savings.primeiroAno !== null && ` · desde ${savings.primeiroAno}`}
-      </p>
+      {reserve ? (
+        <>
+          <Money value={reserve.saldo} color="var(--economia)" big />
+          <p className="mt-0.5 text-xs lowercase text-fg-subtle">
+            {reserve.vault.goal ? (
+              <>
+                {formatPercent((reserve.progresso ?? 0) * 100, 0)} de <Brl value={reserve.vault.goal} />
+              </>
+            ) : (
+              "sem meta definida"
+            )}
+            {meses !== null &&
+              ` · segura ${meses.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} ${meses >= 1 && meses < 2 ? "mês" : "meses"}`}
+          </p>
+          {reserve.progresso !== null && (
+            <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-surface-3">
+              <div
+                className="h-full rounded-full transition-[width] duration-700"
+                style={{ width: `${Math.min(reserve.progresso * 100, 100)}%`, background: "var(--economia)" }}
+              />
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          <Money value={savings.guardado} color="var(--economia)" big />
+          <p className="mt-0.5 text-xs lowercase text-fg-subtle">
+            guardado até hoje
+            {savings.primeiroAno !== null && ` · desde ${savings.primeiroAno}`}
+          </p>
+        </>
+      )}
       <div className="mt-4 rounded-xl bg-surface-2 px-3 py-2.5">
         <p className="flex items-baseline justify-between gap-2 text-sm">
           <span className="lowercase text-fg-muted">neste mês</span>

@@ -11,6 +11,9 @@ import { MenuView } from "@/components/views/MenuView";
 import { OverviewView } from "@/components/views/OverviewView";
 import { ApartmentView } from "@/components/views/ApartmentView";
 import { ApartmentPlanModal } from "@/components/ApartmentPlanModal";
+import { VaultsView, vaultDeleteDescription } from "@/components/views/VaultsView";
+import { VaultModal } from "@/components/VaultModal";
+import { averageLivingCost, sortVaults, vaultBalances } from "@/lib/vaults";
 import { DayDrawer, type DayFilter } from "@/components/DayDrawer";
 import { TransactionModal } from "@/components/TransactionModal";
 import { BudgetModal } from "@/components/BudgetModal";
@@ -19,7 +22,7 @@ import { PeriodPicker } from "@/components/PeriodPicker";
 import { ViewHeader } from "@/components/ui/ViewHeader";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
-import { useFinanceData, type TransactionPayload } from "@/hooks/useFinanceData";
+import { useFinanceData, type TransactionPayload, type VaultPayload } from "@/hooks/useFinanceData";
 import { useApartment } from "@/hooks/useApartment";
 import { EMPTY_PREMISES, isPlanComplete, type ApartmentPremises } from "@/lib/apartment";
 import {
@@ -34,7 +37,7 @@ import {
   type YearMonth,
 } from "@/lib/ledger";
 import { fromDateStr, toDateStr } from "@/lib/format";
-import type { Budget, Card, Transaction, TxType } from "@/lib/types";
+import type { Budget, Card, Transaction, TxType, Vault } from "@/lib/types";
 
 /** Meses exibidos de uma vez em saldos e horizonte. */
 const WINDOW_SPAN = 12;
@@ -49,6 +52,7 @@ const VIEW_TITLES: Record<ViewKey, string> = {
   horizonte: "horizonte de saldos",
   orcamentos: "orçamentos",
   apartamento: "apartamento",
+  cofres: "cofres",
   cartoes: "cartões de crédito",
   menu: "menu",
 };
@@ -56,9 +60,13 @@ const VIEW_TITLES: Record<ViewKey, string> = {
 export function FinanceApp() {
   const showToast = useToast();
   const finance = useFinanceData();
-  const { transactions, budgets, cards, loading } = finance;
+  const { transactions, budgets, cards, vaults, loading } = finance;
   const apartment = useApartment();
   const [planModalOpen, setPlanModalOpen] = useState(false);
+  const [vaultModal, setVaultModal] = useState<{ editing: Vault | null; asReserve?: boolean } | null>(null);
+  const [deletingVault, setDeletingVault] = useState<Vault | null>(null);
+  /** Guardar/resgatar a partir de um cofre: tipo e cofre já escolhidos no modal. */
+  const [txPreset, setTxPreset] = useState<{ type: TxType; vaultId: string } | null>(null);
   const [deletingPlan, setDeletingPlan] = useState(false);
   const [planBusy, setPlanBusy] = useState(false);
 
@@ -143,6 +151,12 @@ export function FinanceApp() {
 
   const savings = useMemo(() => summarizeSavings(transactions, today), [transactions, today]);
 
+  const balances = useMemo(
+    () => sortVaults(vaultBalances(vaults, transactions, today)),
+    [vaults, transactions, today],
+  );
+  const livingCost = useMemo(() => averageLivingCost(transactions, today), [transactions, today]);
+
   const cardIndex = useMemo(() => indexCards(cards), [cards]);
 
   // O dia mostra o que sai do bolso nele: a compra no cartão aparece no dia do
@@ -190,6 +204,7 @@ export function FinanceApp() {
   const closeTxModal = useCallback(() => {
     setTxModalOpen(false);
     setEditingTx(null);
+    setTxPreset(null);
   }, []);
 
   const persistTransaction = useCallback(
@@ -312,6 +327,49 @@ export function FinanceApp() {
     }
   }, [deletingCard, finance, showToast]);
 
+  const openVaultMove = useCallback(
+    (vault: Vault, kind: "guardar" | "resgatar") => {
+      setTxPreset({ type: kind === "guardar" ? "investimento" : "entrada", vaultId: vault.id });
+      setEditingTx(null);
+      setTxModalDate(toDateStr(today));
+      setTxModalSession((session) => session + 1);
+      setTxModalOpen(true);
+    },
+    [today],
+  );
+
+  const handleSaveVault = useCallback(
+    async (vault: VaultPayload) => {
+      setSubmitting(true);
+      try {
+        await finance.saveVault(vault);
+        showToast("cofre salvo.");
+        setVaultModal(null);
+      } catch (error) {
+        console.error(error);
+        showToast("não foi possível salvar o cofre.", "error");
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [finance, showToast],
+  );
+
+  const confirmDeleteVault = useCallback(async () => {
+    if (!deletingVault) return;
+    setSubmitting(true);
+    try {
+      await finance.deleteVault(deletingVault.id);
+      showToast("cofre excluído.");
+      setDeletingVault(null);
+    } catch (error) {
+      console.error(error);
+      showToast("não foi possível excluir o cofre.", "error");
+    } finally {
+      setSubmitting(false);
+    }
+  }, [deletingVault, finance, showToast]);
+
   /** Gera os lançamentos do plano e recarrega o saldo. */
   const syncPlan = useCallback(async () => {
     setPlanBusy(true);
@@ -432,6 +490,9 @@ export function FinanceApp() {
           today={today}
           plan={apartment.plan}
           onOpenApartment={() => setView("apartamento")}
+          onOpenVaults={() => setView("cofres")}
+          reserve={balances.find((b) => b.vault.kind === "reserva") ?? null}
+          livingCost={livingCost}
           onSelectDay={(dateStr) => openDay(dateStr)}
           onOpenMonth={(year, month) => {
             setTotalsMonth({ year, month });
@@ -474,6 +535,17 @@ export function FinanceApp() {
         />
       )}
 
+      {view === "cofres" && (
+        <VaultsView
+          balances={balances}
+          livingCost={livingCost}
+          onCreate={(asReserve) => setVaultModal({ editing: null, asReserve })}
+          onEdit={(vault) => setVaultModal({ editing: vault })}
+          onDelete={setDeletingVault}
+          onMove={openVaultMove}
+        />
+      )}
+
       {view === "orcamentos" && (
         <BudgetsView
           budgets={budgets}
@@ -509,6 +581,7 @@ export function FinanceApp() {
           onOpenCards={() => setView("cartoes")}
           onOpenHorizon={() => setView("horizonte")}
           onOpenApartment={() => setView("apartamento")}
+          onOpenVaults={() => setView("cofres")}
           onResetData={finance.resetAllData}
           dataCounts={{
             transactions: transactions.length,
@@ -545,8 +618,10 @@ export function FinanceApp() {
           date={txModalDate}
           editing={editingTx}
           // Estando o painel filtrado numa coluna, o novo lançamento já nasce nela.
-          defaultType={dayFilter === "todos" ? mobileType : dayFilter}
+          defaultType={txPreset?.type ?? (dayFilter === "todos" ? mobileType : dayFilter)}
+          defaultVaultId={txPreset?.vaultId ?? null}
           cards={cards}
+          vaults={vaults}
           submitting={submitting}
           onSubmit={handleSubmitTransaction}
         />
@@ -657,6 +732,33 @@ export function FinanceApp() {
             {
               label: "excluir cartão",
               onClick: () => void confirmDeleteCard(),
+              tone: "danger",
+            },
+          ]}
+        />
+      )}
+
+      {vaultModal && (
+        <VaultModal
+          editing={vaultModal.editing}
+          asReserve={vaultModal.asReserve}
+          livingCost={livingCost}
+          busy={submitting}
+          onClose={() => setVaultModal(null)}
+          onSave={(vault) => void handleSaveVault(vault)}
+        />
+      )}
+
+      {deletingVault && (
+        <ConfirmDialog
+          onClose={() => setDeletingVault(null)}
+          title={`excluir "${deletingVault.name}"`}
+          description={vaultDeleteDescription(balances.find((b) => b.vault.id === deletingVault.id))}
+          busy={submitting}
+          actions={[
+            {
+              label: "excluir cofre",
+              onClick: () => void confirmDeleteVault(),
               tone: "danger",
             },
           ]}

@@ -32,6 +32,7 @@ export async function DELETE(request: Request) {
             prisma.budget.deleteMany({ where: { userId } }),
             prisma.card.deleteMany({ where: { userId } }),
             prisma.apartmentPlan.deleteMany({ where: { userId } }),
+            prisma.vault.deleteMany({ where: { userId } }),
         ]);
 
         return NextResponse.json({

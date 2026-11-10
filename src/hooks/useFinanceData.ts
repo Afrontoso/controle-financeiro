@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { Budget, Card, Transaction, TxType } from "@/lib/types";
+import type { Budget, Card, Transaction, TxType, Vault } from "@/lib/types";
 import { isTxType } from "@/lib/types";
 
 interface RawTransaction {
@@ -13,6 +13,8 @@ interface RawTransaction {
   category?: string | null;
   groupId?: string | null;
   cardId?: string | null;
+  vaultId?: string | null;
+  source?: string | null;
 }
 
 /**
@@ -46,6 +48,8 @@ function normalizeTransaction(raw: RawTransaction): Transaction {
     category: raw.category ?? undefined,
     groupId: raw.groupId ?? undefined,
     cardId: raw.cardId ?? undefined,
+    vaultId: raw.vaultId ?? undefined,
+    source: raw.source ?? undefined,
   };
 }
 
@@ -85,6 +89,34 @@ async function loadCards(): Promise<Card[]> {
   }
 }
 
+async function loadVaults(): Promise<Vault[]> {
+  try {
+    const res = await fetch("/api/vaults");
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data)
+      ? data.map((v) => ({
+          id: v.id,
+          name: v.name,
+          goal: v.goal ?? null,
+          initial: Number(v.initial) || 0,
+          kind: v.kind === "reserva" ? "reserva" : "cofre",
+        }))
+      : [];
+  } catch (error) {
+    console.error("Erro ao carregar cofres", error);
+    return [];
+  }
+}
+
+export interface VaultPayload {
+  id?: string | null;
+  name: string;
+  goal: number | null;
+  initial: number;
+  kind: Vault["kind"];
+}
+
 export interface TransactionPayload {
   date: string;
   type: TxType;
@@ -92,6 +124,8 @@ export interface TransactionPayload {
   description: string;
   /** null limpa o cartão do lançamento; undefined mantém o que já estava. */
   cardId?: string | null;
+  /** Cofre de uma economia (guardar) ou entrada (resgatar); null desvincula. */
+  vaultId?: string | null;
   repeatFrequency?: "diario" | "semanal" | "mensal";
   repeatCount?: number;
   isIndeterminate?: boolean;
@@ -110,6 +144,8 @@ function buildBody(payload: TransactionPayload) {
     category: payload.type,
     // Fora do cartão o vínculo não faz sentido e é sempre desfeito.
     cardId: payload.type === "cartao" ? (payload.cardId ?? null) : null,
+    vaultId:
+      payload.type === "investimento" || payload.type === "entrada" ? (payload.vaultId ?? null) : null,
   };
 }
 
@@ -117,21 +153,24 @@ export function useFinanceData() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [cards, setCards] = useState<Card[]>([]);
+  const [vaults, setVaults] = useState<Vault[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
 
     void (async () => {
-      const [txs, bgs, cds] = await Promise.all([
+      const [txs, bgs, cds, vts] = await Promise.all([
         loadTransactions(),
         loadBudgets(),
         loadCards(),
+        loadVaults(),
       ]);
       if (cancelled) return;
       setTransactions(txs);
       setBudgets(bgs);
       setCards(cds);
+      setVaults(vts);
       setLoading(false);
     })();
 
@@ -258,6 +297,35 @@ export function useFinanceData() {
     [refreshCards, refreshTransactions],
   );
 
+  const refreshVaults = useCallback(async () => {
+    setVaults(await loadVaults());
+  }, []);
+
+  const saveVault = useCallback(
+    async (vault: VaultPayload) => {
+      const body = { name: vault.name, goal: vault.goal, initial: vault.initial, kind: vault.kind };
+      const res = await fetch(vault.id ? `/api/vaults/${vault.id}` : "/api/vaults", {
+        method: vault.id ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error("Falha ao salvar cofre");
+      await refreshVaults();
+    },
+    [refreshVaults],
+  );
+
+  const deleteVault = useCallback(
+    async (id: string) => {
+      const res = await fetch(`/api/vaults/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Falha ao excluir cofre");
+      await refreshVaults();
+      // Os lançamentos ficam, só perdem o vínculo com o cofre.
+      await refreshTransactions();
+    },
+    [refreshVaults, refreshTransactions],
+  );
+
   const resetAllData = useCallback(async () => {
     const res = await fetch("/api/account/data", {
       method: "DELETE",
@@ -268,14 +336,18 @@ export function useFinanceData() {
     setTransactions([]);
     setBudgets([]);
     setCards([]);
+    setVaults([]);
   }, []);
 
   return {
     transactions,
     budgets,
     cards,
+    vaults,
     loading,
     refreshTransactions,
+    saveVault,
+    deleteVault,
     resetAllData,
     createTransaction,
     updateTransaction,

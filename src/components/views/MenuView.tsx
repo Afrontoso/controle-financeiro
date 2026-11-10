@@ -5,6 +5,7 @@ import { signOut, useSession } from "next-auth/react";
 import {
   Bug,
   Building2,
+  PiggyBank,
   CalendarDays,
   CalendarRange,
   ChevronRight,
@@ -33,12 +34,13 @@ interface MenuViewProps {
   onOpenCards: () => void;
   onOpenHorizon: () => void;
   onOpenApartment: () => void;
+  onOpenVaults: () => void;
   onGoToday: () => void;
   onResetData: () => Promise<void>;
   dataCounts: { transactions: number; budgets: number; cards: number };
 }
 
-export function MenuView({ onOpenCards, onOpenHorizon, onOpenApartment, onGoToday, onResetData, dataCounts }: MenuViewProps) {
+export function MenuView({ onOpenCards, onOpenHorizon, onOpenApartment, onOpenVaults, onGoToday, onResetData, dataCounts }: MenuViewProps) {
   const { theme, toggleTheme } = useTheme();
   const { data: session } = useSession();
   const showToast = useToast();
@@ -105,6 +107,13 @@ export function MenuView({ onOpenCards, onOpenHorizon, onOpenApartment, onGoToda
             label="apartamento"
             hint="financiamento"
             onClick={onOpenApartment}
+            className="md:hidden"
+          />
+          <MenuRow
+            icon={PiggyBank}
+            label="cofres"
+            hint="reserva e metas"
+            onClick={onOpenVaults}
             className="md:hidden"
           />
 
