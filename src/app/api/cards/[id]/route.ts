@@ -35,11 +35,14 @@ export async function PATCH(
             return NextResponse.json({ error: "Invalid dueDay" }, { status: 400 });
         }
 
+        const limit = data.limit === undefined ? undefined : Number(data.limit) > 0 ? Number(data.limit) : null;
+
         const updatedCard = await prisma.card.update({
             where: { id },
             data: {
                 name: data.name,
                 dueDay: day,
+                ...(limit !== undefined && { limit }),
             },
         });
 

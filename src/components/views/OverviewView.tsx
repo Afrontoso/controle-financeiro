@@ -14,13 +14,16 @@ import {
   billsOfMonth,
   breakdownMonth,
   cardForecasts,
+  cardLimitUsage,
+  type BillItem,
+  type CardLimitUsage,
   type BillDay,
   type CardForecast,
   type MonthBreakdown,
   type MonthEntry,
   type SavingsTotal,
 } from "@/lib/ledger";
-import type { Card } from "@/lib/types";
+import type { Card, Transaction } from "@/lib/types";
 import type { FixedCost, VaultBalance } from "@/lib/vaults";
 import { Brl, KeepRs } from "@/components/ui/Brl";
 
@@ -34,6 +37,9 @@ interface OverviewViewProps {
   /** O mês em tela primeiro, seguido dos próximos (para projeção e faturas). */
   months: MonthEntry[];
   cards: Card[];
+  /** Todos os lançamentos: para o limite usado dos cartões. */
+  transactions: Transaction[];
+  onTogglePaid: (ids: string[], paid: boolean) => void;
   savings: SavingsTotal;
   today: Date;
   /** Plano do apartamento, se houver: liga o card de moradia e os prazos. */
@@ -50,6 +56,8 @@ interface OverviewViewProps {
 export function OverviewView({
   months,
   cards,
+  transactions,
+  onTogglePaid,
   savings,
   today,
   plan,
@@ -65,6 +73,7 @@ export function OverviewView({
   const summary = breakdowns[0];
   const bills = useMemo(() => (current ? billsOfMonth(current, cards) : []), [current, cards]);
   const forecasts = useMemo(() => cardForecasts(months.slice(0, 4), cards), [months, cards]);
+  const usage = useMemo(() => cardLimitUsage(transactions, cards, today), [transactions, cards, today]);
 
   const hasPlan = Boolean(plan && isPlanComplete(plan));
 
@@ -79,10 +88,18 @@ export function OverviewView({
         <BillsCard
           bills={bills}
           today={today}
+          monthStatus={
+            current.isCurrent
+              ? "atual"
+              : current.year * 12 + current.month < today.getFullYear() * 12 + today.getMonth()
+                ? "passado"
+                : "futuro"
+          }
           onSelectDay={onSelectDay}
+          onTogglePaid={onTogglePaid}
           className="lg:col-span-2 lg:row-span-2"
         />
-        <CardsCard forecasts={forecasts} />
+        <CardsCard forecasts={forecasts} usage={usage} />
         <EconomiasCard
           summary={summary}
           savings={savings}
@@ -217,27 +234,39 @@ function ComprometidoCard({ summary }: { summary: MonthBreakdown }) {
   );
 }
 
+type MonthStatus = "passado" | "atual" | "futuro";
+
 function BillsCard({
   bills,
   today,
+  monthStatus,
   onSelectDay,
+  onTogglePaid,
   className,
 }: {
   bills: BillDay[];
   today: Date;
+  monthStatus: MonthStatus;
   onSelectDay: (dateStr: string) => void;
+  onTogglePaid: (ids: string[], paid: boolean) => void;
   className?: string;
 }) {
   const [showAll, setShowAll] = useState(false);
+  // Meses que já passaram contam como pagos: senão o histórico todo viraria "atrasado".
+  const settled = (item: BillItem) => item.paid || monthStatus === "passado";
   const total = bills.reduce((sum, day) => sum + day.total, 0);
-  const pendente = bills.filter((day) => !day.isPast).reduce((sum, day) => sum + day.total, 0);
+  const pendente = bills.reduce(
+    (sum, day) => sum + day.items.filter((item) => !settled(item)).reduce((s, item) => s + item.amount, 0),
+    0,
+  );
+  const vencidas = bills.filter((day) => monthStatus === "atual" && day.isPast && day.items.some((i) => !i.paid));
   const visible = showAll ? bills : bills.slice(0, 8);
   const todayMs = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
 
   return (
     <Panel
       title="contas do mês"
-      info="saídas e faturas de cartão agrupadas pelo dia em que saem do saldo. dias que já passaram aparecem riscados; as que vencem nos próximos 5 dias ficam destacadas. toque num dia para ver e editar os lançamentos."
+      info="saídas e faturas de cartão agrupadas pelo dia em que saem do saldo. toque no círculo para marcar como paga (a fatura do cartão é marcada inteira); isso é só um registro e não muda o saldo projetado. no mês atual, o que venceu e não foi marcado fica em vermelho. toque no dia para ver e editar os lançamentos."
       aside={
         <span className="text-sm tabular text-fg-muted">
           falta <Brl value={pendente} /> <span className="text-fg-subtle">de <Brl value={total} /></span>
@@ -245,6 +274,17 @@ function BillsCard({
       }
       className={className}
     >
+      {vencidas.length > 0 && (
+        <p
+          className="mb-2 flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs lowercase"
+          style={{ background: "var(--saida-soft)", color: "var(--saida)" }}
+        >
+          <TriangleAlert size={13} className="shrink-0" />
+          {vencidas.length === 1 ? "1 dia com conta vencida" : `${vencidas.length} dias com contas vencidas`} e não
+          marcada como paga. se já pagou, toque no círculo.
+        </p>
+      )}
+
       {bills.length === 0 ? (
         <Empty>nenhuma conta neste mês.</Empty>
       ) : (
@@ -252,72 +292,86 @@ function BillsCard({
           {visible.map((day) => {
             const [y, m, d] = day.dateStr.split("-").map(Number);
             const daysAway = Math.round((new Date(y, m - 1, d).getTime() - todayMs) / 86_400_000);
-            const soon = !day.isPast && daysAway <= SOON_DAYS;
+            const allSettled = day.items.every(settled);
+            const overdue = monthStatus === "atual" && day.isPast && !day.allPaid;
+            const soon = !day.isPast && !allSettled && daysAway <= SOON_DAYS;
+
+            const badgeStyle = allSettled
+              ? { background: "var(--entrada-soft)", color: "var(--entrada)" }
+              : overdue || soon
+                ? { background: "var(--saida)", color: "white" }
+                : { background: "var(--saida-soft)", color: "var(--saida)" };
 
             return (
-              <li key={day.dateStr}>
+              <li key={day.dateStr} className="flex items-start gap-3 rounded-xl px-2 py-2.5 transition-colors hover:bg-surface-2">
                 <button
                   type="button"
                   onClick={() => onSelectDay(day.dateStr)}
-                  className="flex w-full items-start gap-3 rounded-xl px-2 py-2.5 text-left transition-colors hover:bg-surface-2"
+                  aria-label={`Abrir o dia ${day.day}`}
+                  className="grid size-10 shrink-0 place-items-center rounded-xl text-sm font-bold tabular"
+                  style={badgeStyle}
                 >
-                  <span
-                    className={`grid size-10 shrink-0 place-items-center rounded-xl text-sm font-bold tabular ${
-                      day.isPast ? "bg-surface-3 text-fg-subtle" : ""
-                    }`}
-                    style={
-                      day.isPast
-                        ? undefined
-                        : soon
-                          ? { background: "var(--saida)", color: "white" }
-                          : { background: "var(--saida-soft)", color: "var(--saida)" }
-                    }
-                  >
-                    {day.isPast ? <Check size={16} /> : day.day}
-                  </span>
+                  {allSettled ? <Check size={16} /> : day.day}
+                </button>
 
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-baseline justify-between gap-2">
-                      <span className="text-xs lowercase text-fg-subtle">
-                        {day.isToday
+                <div className="min-w-0 flex-1">
+                  <button
+                    type="button"
+                    onClick={() => onSelectDay(day.dateStr)}
+                    className="flex w-full items-baseline justify-between gap-2 text-left"
+                  >
+                    <span className="text-xs lowercase" style={{ color: overdue ? "var(--saida)" : "var(--fg-subtle)" }}>
+                      {overdue
+                        ? `dia ${day.day} · venceu`
+                        : day.isToday
                           ? "hoje"
                           : day.isPast
-                            ? `dia ${day.day} · já saiu`
+                            ? `dia ${day.day}`
                             : daysAway === 1
                               ? "amanhã"
                               : soon
                                 ? `em ${daysAway} dias`
                                 : `dia ${day.day}`}
-                      </span>
-                      <span
-                        className={`shrink-0 text-sm font-semibold tabular ${day.isPast ? "text-fg-subtle line-through" : ""}`}
-                      >
-                        <Brl value={day.total} />
-                      </span>
                     </span>
-                    <span className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
-                      {day.items.map((item) => (
-                        <span
-                          key={item.id}
-                          className={`flex min-w-0 items-center gap-1.5 text-sm lowercase ${
-                            day.isPast ? "text-fg-subtle" : ""
-                          }`}
-                        >
-                          <span
-                            className="size-1.5 shrink-0 rounded-full"
-                            style={{ background: item.type === "cartao" ? "var(--cartao)" : "var(--saida)" }}
-                          />
-                          <span className="truncate">{item.label}</span>
+                    <span className={`shrink-0 text-sm font-semibold tabular ${allSettled ? "text-fg-subtle line-through" : ""}`}>
+                      <Brl value={day.total} />
+                    </span>
+                  </button>
+
+                  <ul className="mt-1 flex flex-col gap-0.5">
+                    {day.items.map((item) => {
+                      const done = settled(item);
+                      return (
+                        <li key={item.id} className="flex min-w-0 items-center gap-2 text-sm lowercase">
+                          <button
+                            type="button"
+                            onClick={() => onTogglePaid(item.txIds, !item.paid)}
+                            aria-pressed={item.paid}
+                            aria-label={item.paid ? `Desmarcar ${item.label} como paga` : `Marcar ${item.label} como paga`}
+                            title={item.paid ? "paga · toque para desmarcar" : "marcar como paga"}
+                            className="grid size-[18px] shrink-0 place-items-center rounded-full border transition-colors"
+                            style={
+                              item.paid
+                                ? { background: "var(--entrada)", borderColor: "var(--entrada)", color: "white" }
+                                : { borderColor: item.type === "cartao" ? "var(--cartao)" : "var(--saida)" }
+                            }
+                          >
+                            {item.paid && <Check size={11} strokeWidth={3} />}
+                          </button>
+                          <span className={`min-w-0 flex-1 truncate ${done ? "text-fg-subtle line-through" : ""}`}>
+                            <KeepRs text={item.label} />
+                            {item.count > 1 && <span className="text-fg-subtle"> · {item.count} compras</span>}
+                          </span>
                           {day.items.length > 1 && (
                             <span className="shrink-0 text-xs text-fg-subtle tabular">
                               <Brl value={item.amount} />
                             </span>
                           )}
-                        </span>
-                      ))}
-                    </span>
-                  </span>
-                </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
               </li>
             );
           })}
@@ -337,11 +391,13 @@ function BillsCard({
   );
 }
 
-function CardsCard({ forecasts }: { forecasts: CardForecast[] }) {
+function CardsCard({ forecasts, usage }: { forecasts: CardForecast[]; usage: CardLimitUsage[] }) {
+  const usageById = new Map(usage.map((u) => [u.card.id, u]));
+
   return (
     <Panel
       title="cartões"
-      info="fatura de cada cartão pelo mês em que vence, com as três seguintes. conta só o que já está lançado: parcelas futuras aparecem, compras que você ainda vai fazer não."
+      info="fatura de cada cartão pelo mês em que vence, com as três seguintes. conta só o que já está lançado: parcelas futuras aparecem, compras que você ainda vai fazer não. o limite livre desconta tudo o que ainda não foi marcado como pago neste cartão, parcelas futuras incluídas, como o banco faz."
     >
       {forecasts.length === 0 ? (
         <Empty>nenhum cartão cadastrado. cadastre em menu → cartões de crédito.</Empty>
@@ -349,6 +405,8 @@ function CardsCard({ forecasts }: { forecasts: CardForecast[] }) {
         <ul className="flex flex-col gap-4">
           {forecasts.map(({ card, months }) => {
             const max = Math.max(...months.map((m) => m.amount), 1);
+            const u = usageById.get(card.id);
+            const usado = u?.limite ? Math.min(u.emAberto / u.limite, 1) : 0;
             return (
               <li key={card.id}>
                 <div className="flex items-center gap-2.5">
@@ -366,6 +424,33 @@ function CardsCard({ forecasts }: { forecasts: CardForecast[] }) {
                     <Brl value={months[0]?.amount ?? 0} />
                   </span>
                 </div>
+
+                {u?.limite ? (
+                  <div className="mt-2">
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-3">
+                      <div
+                        className="h-full rounded-full transition-[width] duration-700"
+                        style={{
+                          width: `${usado * 100}%`,
+                          background: usado > 0.8 ? "var(--saida)" : "var(--cartao)",
+                        }}
+                      />
+                    </div>
+                    <p className="mt-1 flex justify-between text-[11px] lowercase text-fg-subtle tabular">
+                      <span style={{ color: (u.livre ?? 0) < 0 ? "var(--saida)" : undefined }}>
+                        livre <Brl value={u.livre ?? 0} />
+                      </span>
+                      <span>
+                        de <Brl value={u.limite} />
+                      </span>
+                    </p>
+                  </div>
+                ) : (
+                  <p className="mt-1.5 text-[11px] lowercase text-fg-subtle">
+                    em aberto <Brl value={u?.emAberto ?? 0} /> · informe o limite no cartão para ver o livre
+                  </p>
+                )}
+
                 <div className="mt-2.5 grid grid-cols-4 items-end gap-1.5">
                   {months.map((m, i) => (
                     <div key={m.key} className="flex flex-col items-center gap-1">

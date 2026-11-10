@@ -27,6 +27,7 @@ import { useApartment } from "@/hooks/useApartment";
 import { EMPTY_PREMISES, isPlanComplete, type ApartmentPremises } from "@/lib/apartment";
 import {
   buildLedger,
+  cardLimitUsage,
   chargeDateOf,
   indexCards,
   shiftMonth,
@@ -161,6 +162,7 @@ export function FinanceApp() {
   );
 
   const cardIndex = useMemo(() => indexCards(cards), [cards]);
+  const cardUsage = useMemo(() => cardLimitUsage(transactions, cards, today), [transactions, cards, today]);
 
   // O dia mostra o que sai do bolso nele: a compra no cartão aparece no dia do
   // vencimento, junto com o resto da fatura, e não no dia em que foi feita.
@@ -298,7 +300,7 @@ export function FinanceApp() {
   }, [deletingBudget, finance, showToast]);
 
   const handleSaveCard = useCallback(
-    async (card: { id?: string | null; name: string; dueDay: number }) => {
+    async (card: { id?: string | null; name: string; dueDay: number; limit: number | null }) => {
       setSubmitting(true);
       try {
         await finance.saveCard(card);
@@ -489,6 +491,13 @@ export function FinanceApp() {
         <OverviewView
           months={overviewMonths}
           cards={cards}
+          transactions={transactions}
+          onTogglePaid={(ids, paid) => {
+            finance.setPaid(ids, paid).catch((error) => {
+              console.error(error);
+              showToast("não foi possível marcar como paga.", "error");
+            });
+          }}
           savings={savings}
           today={today}
           plan={apartment.plan}
@@ -567,6 +576,7 @@ export function FinanceApp() {
       {view === "cartoes" && (
         <CardsView
           cards={cards}
+          usage={cardUsage}
           onCreate={() => {
             setEditingCard(null);
             setCardModalOpen(true);

@@ -15,6 +15,7 @@ interface RawTransaction {
   cardId?: string | null;
   vaultId?: string | null;
   source?: string | null;
+  paidAt?: string | null;
 }
 
 /**
@@ -50,6 +51,7 @@ function normalizeTransaction(raw: RawTransaction): Transaction {
     cardId: raw.cardId ?? undefined,
     vaultId: raw.vaultId ?? undefined,
     source: raw.source ?? undefined,
+    paid: Boolean(raw.paidAt),
   };
 }
 
@@ -266,9 +268,28 @@ export function useFinanceData() {
     [refreshBudgets],
   );
 
+  /** Marca/desmarca como pago; atualiza a tela antes e desfaz se o servidor recusar. */
+  const setPaid = useCallback(async (ids: string[], paid: boolean) => {
+    const target = new Set(ids);
+    const apply = (value: boolean) =>
+      setTransactions((txs) => txs.map((tx) => (target.has(tx.id) ? { ...tx, paid: value } : tx)));
+    apply(paid);
+    try {
+      const res = await fetch("/api/transactions/paid", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids, paid }),
+      });
+      if (!res.ok) throw new Error("Falha ao marcar como pago");
+    } catch (error) {
+      apply(!paid);
+      throw error;
+    }
+  }, []);
+
   const saveCard = useCallback(
-    async (card: { id?: string | null; name: string; dueDay: number }) => {
-      const body = { name: card.name, dueDay: card.dueDay };
+    async (card: { id?: string | null; name: string; dueDay: number; limit?: number | null }) => {
+      const body = { name: card.name, dueDay: card.dueDay, limit: card.limit ?? null };
       const res = card.id
         ? await fetch(`/api/cards/${card.id}`, {
             method: "PATCH",
@@ -356,6 +377,7 @@ export function useFinanceData() {
     refreshTransactions,
     saveVault,
     deleteVault,
+    setPaid,
     resetAllData,
     createTransaction,
     updateTransaction,

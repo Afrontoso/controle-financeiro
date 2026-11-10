@@ -24,6 +24,8 @@ export interface Transaction {
   vaultId?: string;
   /** Gerado por um plano (ex.: "apto:banco"); ausente nos manuais. */
   source?: string;
+  /** Marcado como pago. Só registro: não muda o saldo projetado. */
+  paid?: boolean;
 }
 
 export type VaultKind = "reserva" | "cofre";
@@ -52,6 +54,8 @@ export interface Card {
   name: string;
   /** Dia do vencimento da fatura (1–31). */
   dueDay: number;
+  /** Limite de crédito; null = não informado. */
+  limit?: number | null;
 }
 
 export interface TxTypeMeta {

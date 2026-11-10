@@ -2,18 +2,21 @@
 
 import { CreditCard, Pencil, Plus, Trash2 } from "lucide-react";
 import { dayShortLabel, toDateStr } from "@/lib/format";
-import { nextDueDate } from "@/lib/ledger";
+import { nextDueDate, type CardLimitUsage } from "@/lib/ledger";
+import { Brl } from "@/components/ui/Brl";
 import type { Card } from "@/lib/types";
 
 interface CardsViewProps {
   cards: Card[];
+  usage: CardLimitUsage[];
   onCreate: () => void;
   onEdit: (card: Card) => void;
   onDelete: (card: Card) => void;
 }
 
-export function CardsView({ cards, onCreate, onEdit, onDelete }: CardsViewProps) {
+export function CardsView({ cards, usage, onCreate, onEdit, onDelete }: CardsViewProps) {
   const hoje = toDateStr(new Date());
+  const usageById = new Map(usage.map((u) => [u.card.id, u]));
 
   return (
     <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-3 md:p-6">
@@ -42,6 +45,24 @@ export function CardsView({ cards, onCreate, onEdit, onDelete }: CardsViewProps)
                   vence todo dia {card.dueDay} · uma compra de hoje cai em{" "}
                   {dayShortLabel(nextDueDate(hoje, card.dueDay))}
                 </p>
+                {(() => {
+                  const u = usageById.get(card.id);
+                  if (!u) return null;
+                  return (
+                    <p className="text-xs lowercase text-fg-subtle tabular">
+                      em aberto <Brl value={u.emAberto} />
+                      {u.limite !== null && (
+                        <>
+                          {" · "}
+                          <span style={{ color: (u.livre ?? 0) < 0 ? "var(--saida)" : undefined }}>
+                            livre <Brl value={u.livre ?? 0} />
+                          </span>{" "}
+                          de <Brl value={u.limite} />
+                        </>
+                      )}
+                    </p>
+                  );
+                })()}
               </div>
 
               <div className="flex shrink-0 items-center gap-1">

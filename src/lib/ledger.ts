@@ -393,6 +393,10 @@ export interface BillItem {
   dateStr: string;
   /** Quantos lançamentos foram somados (faturas agregam várias compras). */
   count: number;
+  /** Lançamentos por trás do item: marcar a fatura como paga marca todas as compras. */
+  txIds: string[];
+  /** Todos os lançamentos do item estão marcados como pagos. */
+  paid: boolean;
 }
 
 export interface BillDay {
@@ -402,6 +406,8 @@ export interface BillDay {
   isToday: boolean;
   total: number;
   items: BillItem[];
+  /** Todos os itens do dia estão pagos. */
+  allPaid: boolean;
 }
 
 /**
@@ -425,6 +431,8 @@ export function billsOfMonth(month: MonthEntry, cards: Card[]): BillDay[] {
           type: "saida",
           dateStr: day.dateStr,
           count: 1,
+          txIds: [tx.id],
+          paid: Boolean(tx.paid),
         });
       } else if (tx.type === "cartao") {
         const key = tx.cardId ?? `avulso-${tx.id}`;
@@ -432,6 +440,8 @@ export function billsOfMonth(month: MonthEntry, cards: Card[]): BillDay[] {
         if (existing) {
           existing.amount += tx.amount;
           existing.count += 1;
+          existing.txIds.push(tx.id);
+          existing.paid = existing.paid && Boolean(tx.paid);
         } else {
           const name = tx.cardId ? cardNames.get(tx.cardId) : undefined;
           faturas.set(key, {
@@ -441,6 +451,8 @@ export function billsOfMonth(month: MonthEntry, cards: Card[]): BillDay[] {
             type: "cartao",
             dateStr: day.dateStr,
             count: 1,
+            txIds: [tx.id],
+            paid: Boolean(tx.paid),
           });
         }
       }
@@ -457,6 +469,7 @@ export function billsOfMonth(month: MonthEntry, cards: Card[]): BillDay[] {
       isToday: day.isToday,
       total: items.reduce((sum, item) => sum + item.amount, 0),
       items,
+      allPaid: items.every((item) => item.paid),
     });
   }
 
@@ -482,6 +495,37 @@ export function cardForecasts(months: MonthEntry[], cards: Card[]): CardForecast
       return { key: month.key, label: month.label, amount };
     }),
   }));
+}
+
+/**
+ * Quanto do limite de cada cartão está comprometido: compras ainda não pagas
+ * cuja fatura vence do mês corrente em diante (parcelas futuras incluídas,
+ * como o banco conta). Faturas de meses anteriores são consideradas pagas.
+ */
+export interface CardLimitUsage {
+  card: Card;
+  limite: number | null;
+  emAberto: number;
+  /** limite − em aberto; null sem limite informado. */
+  livre: number | null;
+}
+
+export function cardLimitUsage(transactions: Transaction[], cards: Card[], today: Date): CardLimitUsage[] {
+  const cardIndex = indexCards(cards);
+  const monthStart = toDateStr(new Date(today.getFullYear(), today.getMonth(), 1));
+  const emAberto = new Map<string, number>();
+
+  for (const tx of transactions) {
+    if (tx.type !== "cartao" || !tx.cardId || tx.paid) continue;
+    if (chargeDateOf(tx, cardIndex) < monthStart) continue;
+    emAberto.set(tx.cardId, (emAberto.get(tx.cardId) ?? 0) + tx.amount);
+  }
+
+  return cards.map((card) => {
+    const aberto = emAberto.get(card.id) ?? 0;
+    const limite = card.limit && card.limit > 0 ? card.limit : null;
+    return { card, limite, emAberto: aberto, livre: limite === null ? null : limite - aberto };
+  });
 }
 
 export interface SavingsTotal {

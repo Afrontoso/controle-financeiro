@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarDays, CreditCard } from "lucide-react";
+import { CalendarDays, CreditCard, Gauge } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
-import { dayShortLabel, toDateStr } from "@/lib/format";
+import { dayShortLabel, formatCurrency, toDateStr } from "@/lib/format";
 import { nextDueDate } from "@/lib/ledger";
 import type { Card } from "@/lib/types";
 
@@ -11,12 +11,17 @@ interface CardModalProps {
   onClose: () => void;
   editing: Card | null;
   submitting: boolean;
-  onSubmit: (card: { id?: string | null; name: string; dueDay: number }) => void;
+  onSubmit: (card: { id?: string | null; name: string; dueDay: number; limit: number | null }) => void;
 }
 
 export function CardModal({ onClose, editing, submitting, onSubmit }: CardModalProps) {
   const [name, setName] = useState(editing?.name ?? "");
   const [dueDay, setDueDay] = useState(String(editing?.dueDay ?? 10));
+  // Centavos como dígitos crus, igual ao valor do lançamento.
+  const [limitDigits, setLimitDigits] = useState(() =>
+    editing?.limit ? String(Math.round(editing.limit * 100)) : "",
+  );
+  const limit = Number(limitDigits || "0") / 100;
   const [error, setError] = useState<string | null>(null);
 
   const day = Number(dueDay);
@@ -29,7 +34,7 @@ export function CardModal({ onClose, editing, submitting, onSubmit }: CardModalP
     if (!name.trim()) return setError("dê um nome ao cartão.");
     if (!valid) return setError("o vencimento é um dia de 1 a 31.");
 
-    onSubmit({ id: editing?.id ?? null, name: name.trim(), dueDay: day });
+    onSubmit({ id: editing?.id ?? null, name: name.trim(), dueDay: day, limit: limit > 0 ? limit : null });
   };
 
   return (
@@ -64,6 +69,19 @@ export function CardModal({ onClose, editing, submitting, onSubmit }: CardModalP
                 setError(null);
               }}
               className="w-16 bg-transparent text-right tabular outline-none"
+            />
+          </label>
+
+          <label className="flex cursor-pointer items-center gap-3.5 border-b border-border-base py-4">
+            <Gauge size={20} className="shrink-0 text-fg-subtle" />
+            <span className="flex-1 lowercase text-fg-muted">limite</span>
+            <span className="text-fg-muted">R$</span>
+            <input
+              inputMode="numeric"
+              placeholder="opcional"
+              value={limit > 0 ? formatCurrency(limit).replace("R$", "").trim() : ""}
+              onChange={(e) => setLimitDigits(e.target.value.replace(/\D/g, "").slice(0, 10))}
+              className="w-28 bg-transparent text-right tabular outline-none placeholder:lowercase placeholder:text-fg-subtle"
             />
           </label>
 

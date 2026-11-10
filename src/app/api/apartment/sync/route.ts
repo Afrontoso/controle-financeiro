@@ -61,14 +61,26 @@ export async function POST(request: Request) {
             };
         });
 
+        const regenerated = {
+            userId,
+            source: { startsWith: SOURCE_PREFIX },
+            date: { gte: new Date(`${fromDate}T00:00:00.000Z`) },
+        };
+
+        // Parcela já marcada como paga (adiantada) continua paga depois de refeita.
+        const paid = await prisma.transaction.findMany({
+            where: { ...regenerated, paidAt: { not: null } },
+            select: { source: true, date: true, paidAt: true },
+        });
+        const paidKey = (source: string | null, date: Date) => `${source}|${date.toISOString().slice(0, 10)}`;
+        const paidAt = new Map(paid.map((tx) => [paidKey(tx.source, tx.date), tx.paidAt]));
+        for (const tx of data) {
+            const when = paidAt.get(paidKey(tx.source, tx.date));
+            if (when) Object.assign(tx, { paidAt: when });
+        }
+
         const [removed, created] = await prisma.$transaction([
-            prisma.transaction.deleteMany({
-                where: {
-                    userId,
-                    source: { startsWith: SOURCE_PREFIX },
-                    date: { gte: new Date(`${fromDate}T00:00:00.000Z`) },
-                },
-            }),
+            prisma.transaction.deleteMany({ where: regenerated }),
             prisma.transaction.createMany({ data }),
         ]);
 

@@ -1,0 +1,2 @@
+ALTER TABLE "Transaction" DROP COLUMN IF EXISTS "paidAt";
+ALTER TABLE "Card" DROP COLUMN IF EXISTS "limit";

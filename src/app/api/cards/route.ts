@@ -3,6 +3,12 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
+/** Limite em reais; vazio, zero ou inválido = não informado. */
+function parseLimit(value: unknown): number | null {
+    const n = Number(value);
+    return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 /** O vencimento é sempre um dia de mês válido; meses curtos são ajustados na UI. */
 function parseDueDay(value: unknown): number | null {
     const day = Number(value);
@@ -36,7 +42,7 @@ export async function POST(request: Request) {
         }
         const userId = (session.user as any).id;
 
-        const { name, dueDay } = await request.json();
+        const { name, dueDay, limit } = await request.json();
         const day = parseDueDay(dueDay);
 
         if (!name || day === null) {
@@ -44,7 +50,7 @@ export async function POST(request: Request) {
         }
 
         const newCard = await prisma.card.create({
-            data: { name, dueDay: day, userId },
+            data: { name, dueDay: day, limit: parseLimit(limit), userId },
         });
 
         return NextResponse.json(newCard, { status: 201 });

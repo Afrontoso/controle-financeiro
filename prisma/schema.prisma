@@ -34,6 +34,9 @@ model Transaction {
   vaultId     String?
   vault       Vault?   @relation(fields: [vaultId], references: [id], onDelete: SetNull)
 
+  /// Quando foi marcado como pago. Só um registro: o saldo projetado não muda.
+  paidAt      DateTime?
+
   @@index([userId])
   @@index([groupId])
   @@index([cardId])
@@ -46,6 +49,8 @@ model Card {
   name      String
   /// Dia do mês em que a fatura vence (1–31; meses curtos usam o último dia).
   dueDay    Int      @default(10)
+  /// Limite de crédito; null = não informado.
+  limit     Float?
   createdAt DateTime @default(now())
 
   userId    String?
