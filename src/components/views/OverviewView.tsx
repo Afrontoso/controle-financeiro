@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Building2, Check, ChevronRight, CreditCard, Info, PiggyBank, TriangleAlert } from "lucide-react";
+import { Building2, Check, ChevronRight, CreditCard, Inbox, Info, PiggyBank, TriangleAlert } from "lucide-react";
 import { formatCurrency, formatDayMonth, formatPercent } from "@/lib/format";
 import {
   buildSchedule,
@@ -48,6 +48,9 @@ interface OverviewViewProps {
   onOpenMonth: (year: number, month: number) => void;
   onOpenApartment: () => void;
   onOpenVaults: () => void;
+  /** Transações do banco esperando na caixa de entrada (0 sem Open Finance). */
+  inboxCount?: number;
+  onOpenBanks?: () => void;
   /** Saldo da reserva de emergência, se houver um cofre marcado como tal. */
   reserve: VaultBalance | null;
   fixedCost: FixedCost;
@@ -65,6 +68,8 @@ export function OverviewView({
   onOpenMonth,
   onOpenApartment,
   onOpenVaults,
+  inboxCount = 0,
+  onOpenBanks,
   reserve,
   fixedCost,
 }: OverviewViewProps) {
@@ -83,6 +88,22 @@ export function OverviewView({
     <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-3 md:p-6">
       <div className="mx-auto grid max-w-5xl grid-cols-1 gap-3 md:gap-4 lg:grid-cols-3">
         {plan && <DeadlineBanner prazos={plan.prazos} today={today} onOpen={onOpenApartment} />}
+        {inboxCount > 0 && onOpenBanks && (
+          <button
+            type="button"
+            onClick={onOpenBanks}
+            className="flex w-full items-center gap-3 rounded-2xl border border-border-base bg-surface p-4 text-left transition-colors hover:bg-surface-2 lg:col-span-3"
+          >
+            <Inbox size={20} className="shrink-0 text-fg-muted" />
+            <span className="min-w-0 flex-1 text-sm lowercase">
+              <span className="font-semibold">
+                {inboxCount} {inboxCount === 1 ? "transação do banco" : "transações do banco"}
+              </span>{" "}
+              <span className="text-fg-muted">esperando na caixa de entrada</span>
+            </span>
+            <ChevronRight size={18} className="shrink-0 text-fg-subtle" />
+          </button>
+        )}
         <SobraCard summary={summary} className="lg:col-span-2" />
         <ComprometidoCard summary={summary} />
         <BillsCard

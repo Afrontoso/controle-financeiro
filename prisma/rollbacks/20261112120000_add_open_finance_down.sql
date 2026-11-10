@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS "BankTransaction";
+DROP TABLE IF EXISTS "BankSnapshot";
+ALTER TABLE "Card" DROP COLUMN IF EXISTS "pluggyAccountId";

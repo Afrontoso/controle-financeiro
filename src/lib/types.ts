@@ -56,6 +56,8 @@ export interface Card {
   dueDay: number;
   /** Limite de crédito; null = não informado. */
   limit?: number | null;
+  /** Conta de cartão no Open Finance que corresponde a este cartão. */
+  pluggyAccountId?: string | null;
 }
 
 export interface TxTypeMeta {

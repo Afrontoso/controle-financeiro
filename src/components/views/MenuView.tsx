@@ -5,6 +5,7 @@ import { signOut, useSession } from "next-auth/react";
 import {
   Bug,
   Building2,
+  Landmark,
   PiggyBank,
   CalendarDays,
   CalendarRange,
@@ -35,12 +36,14 @@ interface MenuViewProps {
   onOpenHorizon: () => void;
   onOpenApartment: () => void;
   onOpenVaults: () => void;
+  /** Só para quem tem Open Finance. */
+  onOpenBanks?: () => void;
   onGoToday: () => void;
   onResetData: () => Promise<void>;
   dataCounts: { transactions: number; budgets: number; cards: number };
 }
 
-export function MenuView({ onOpenCards, onOpenHorizon, onOpenApartment, onOpenVaults, onGoToday, onResetData, dataCounts }: MenuViewProps) {
+export function MenuView({ onOpenCards, onOpenHorizon, onOpenApartment, onOpenVaults, onOpenBanks, onGoToday, onResetData, dataCounts }: MenuViewProps) {
   const { theme, toggleTheme } = useTheme();
   const { data: session } = useSession();
   const showToast = useToast();
@@ -116,6 +119,15 @@ export function MenuView({ onOpenCards, onOpenHorizon, onOpenApartment, onOpenVa
             onClick={onOpenVaults}
             className="md:hidden"
           />
+          {onOpenBanks && (
+            <MenuRow
+              icon={Landmark}
+              label="bancos"
+              hint="open finance"
+              onClick={onOpenBanks}
+              className="md:hidden"
+            />
+          )}
 
           <MenuRow
             icon={CalendarRange}

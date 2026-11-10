@@ -42,7 +42,7 @@ export async function POST(request: Request) {
         }
         const userId = (session.user as any).id;
 
-        const { name, dueDay, limit } = await request.json();
+        const { name, dueDay, limit, pluggyAccountId } = await request.json();
         const day = parseDueDay(dueDay);
 
         if (!name || day === null) {
@@ -50,7 +50,13 @@ export async function POST(request: Request) {
         }
 
         const newCard = await prisma.card.create({
-            data: { name, dueDay: day, limit: parseLimit(limit), userId },
+            data: {
+                name,
+                dueDay: day,
+                limit: parseLimit(limit),
+                pluggyAccountId: typeof pluggyAccountId === "string" && pluggyAccountId ? pluggyAccountId : null,
+                userId,
+            },
         });
 
         return NextResponse.json(newCard, { status: 201 });

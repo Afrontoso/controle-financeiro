@@ -51,6 +51,8 @@ model Card {
   dueDay    Int      @default(10)
   /// Limite de crédito; null = não informado.
   limit     Float?
+  /// Conta de cartão no Open Finance (Pluggy) que corresponde a este cartão.
+  pluggyAccountId String?
   createdAt DateTime @default(now())
 
   userId    String?
@@ -95,6 +97,56 @@ model Vault {
   transactions Transaction[]
 
   @@index([userId])
+}
+
+/// Transação lida do banco pelo Open Finance (Pluggy), antes de virar lançamento.
+/// A caixa de entrada é o que está "pending"; o resto fica para histórico e para
+/// não importar duas vezes.
+model BankTransaction {
+  /// Id da transação na Pluggy: garante que a mesma não entra duas vezes.
+  id               String   @id
+  itemId           String
+  accountId        String
+  /// "BANK" (conta) ou "CREDIT" (cartão), como a Pluggy manda.
+  accountType      String
+  accountName      String
+  /// Dia da transação no fuso de Brasília.
+  date             DateTime
+  description      String
+  /// Valor com o sinal da Pluggy: na conta, negativo sai; no cartão, positivo é compra.
+  amount           Float
+  /// "DEBIT" ou "CREDIT", como a Pluggy manda.
+  direction        String
+  operationType    String?
+  category         String?
+  installmentNumber Int?
+  totalInstallments Int?
+  /// PENDING ou POSTED no banco.
+  bankStatus       String?
+  /// pending (caixa de entrada) | imported | linked | ignored | history
+  status           String   @default("pending")
+  /// Por que foi ignorada automaticamente (transferência entre contas, fatura...).
+  reason           String?
+  /// Lançamento criado ou reconhecido a partir desta transação.
+  transactionId    String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+}
+
+/// Último retrato das contas no Open Finance: saldos, cartões, cofrinhos,
+/// investimentos e validade do consentimento. Substituído a cada sincronização.
+model BankSnapshot {
+  id        String   @id @default(uuid())
+  data      Json
+  syncedAt  DateTime @default(now())
+
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 /// Plano de compra de um imóvel: premissas do contrato e do financiamento.
@@ -150,6 +202,8 @@ model User {
   cards         Card[]
   apartmentPlan ApartmentPlan?
   vaults        Vault[]
+  bankTransactions BankTransaction[]
+  bankSnapshot  BankSnapshot?
 }
 
 model VerificationToken {

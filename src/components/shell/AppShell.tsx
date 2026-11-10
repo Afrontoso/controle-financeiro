@@ -3,6 +3,7 @@
 import { useState } from "react";
 import {
   Building2,
+  Landmark,
   PiggyBank,
   CalendarDays,
   ChevronLeft,
@@ -24,6 +25,7 @@ export type ViewKey =
   | "orcamentos"
   | "apartamento"
   | "cofres"
+  | "bancos"
   | "cartoes"
   | "menu";
 
@@ -44,9 +46,12 @@ const NAV_ITEMS: NavItem[] = [
   { key: "orcamentos", label: "orçamentos", icon: Target },
   { key: "apartamento", label: "apartamento", icon: Building2, desktopOnly: true },
   { key: "cofres", label: "cofres", icon: PiggyBank, desktopOnly: true },
+  { key: "bancos", label: "bancos", icon: Landmark, desktopOnly: true },
 ];
 
 interface AppShellProps {
+  /** Telas que este usuário não tem (ex.: bancos sem Open Finance). */
+  hiddenViews?: ViewKey[];
   view: ViewKey;
   onViewChange: (view: ViewKey) => void;
   onAdd: () => void;
@@ -54,12 +59,14 @@ interface AppShellProps {
   children: React.ReactNode;
 }
 
-export function AppShell({ view, onViewChange, onAdd, onGoToday, children }: AppShellProps) {
+export function AppShell({ hiddenViews = [], view, onViewChange, onAdd, onGoToday, children }: AppShellProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const navItems = NAV_ITEMS.filter((item) => !hiddenViews.includes(item.key));
 
   return (
     <div className="flex h-[100dvh] w-full overflow-hidden bg-bg text-fg">
       <DesktopSidebar
+        items={navItems}
         view={view}
         onViewChange={onViewChange}
         onAdd={onAdd}
@@ -80,6 +87,7 @@ export function AppShell({ view, onViewChange, onAdd, onGoToday, children }: App
 /* ------------------------------------------------------------------ */
 
 interface SidebarProps {
+  items: NavItem[];
   view: ViewKey;
   onViewChange: (view: ViewKey) => void;
   onAdd: () => void;
@@ -89,6 +97,7 @@ interface SidebarProps {
 }
 
 function DesktopSidebar({
+  items,
   view,
   onViewChange,
   onAdd,
@@ -115,7 +124,7 @@ function DesktopSidebar({
       </div>
 
       <nav className="flex flex-col gap-1 px-3">
-        {NAV_ITEMS.map((item) => (
+        {items.map((item) => (
           <SidebarButton
             key={item.key}
             icon={item.icon}
@@ -223,7 +232,8 @@ function MobileTabBar({ view, onViewChange, onAdd }: TabBarProps) {
     view === "cartoes" ||
     view === "horizonte" ||
     view === "apartamento" ||
-    view === "cofres";
+    view === "cofres" ||
+    view === "bancos";
 
   return (
     <nav

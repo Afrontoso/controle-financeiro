@@ -288,8 +288,20 @@ export function useFinanceData() {
   }, []);
 
   const saveCard = useCallback(
-    async (card: { id?: string | null; name: string; dueDay: number; limit?: number | null }) => {
-      const body = { name: card.name, dueDay: card.dueDay, limit: card.limit ?? null };
+    async (card: {
+      id?: string | null;
+      name: string;
+      dueDay: number;
+      limit?: number | null;
+      /** undefined mantém o vínculo; null desfaz. */
+      pluggyAccountId?: string | null;
+    }) => {
+      const body = {
+        name: card.name,
+        dueDay: card.dueDay,
+        limit: card.limit ?? null,
+        ...(card.pluggyAccountId !== undefined && { pluggyAccountId: card.pluggyAccountId }),
+      };
       const res = card.id
         ? await fetch(`/api/cards/${card.id}`, {
             method: "PATCH",

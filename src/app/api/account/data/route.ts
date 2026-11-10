@@ -33,6 +33,8 @@ export async function DELETE(request: Request) {
             prisma.card.deleteMany({ where: { userId } }),
             prisma.apartmentPlan.deleteMany({ where: { userId } }),
             prisma.vault.deleteMany({ where: { userId } }),
+            // A caixa de entrada guarda o que já foi visto: some junto para recomeçar do zero.
+            prisma.bankTransaction.deleteMany({ where: { userId } }),
         ]);
 
         return NextResponse.json({

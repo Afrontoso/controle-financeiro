@@ -13,6 +13,8 @@ import { ApartmentView } from "@/components/views/ApartmentView";
 import { ApartmentPlanModal } from "@/components/ApartmentPlanModal";
 import { VaultsView, vaultDeleteDescription } from "@/components/views/VaultsView";
 import { VaultModal } from "@/components/VaultModal";
+import { BanksView, NEW_CARD } from "@/components/views/BanksView";
+import { useOpenFinance, type ResolveAction } from "@/hooks/useOpenFinance";
 import { fixedLivingCost, sortVaults, vaultBalances } from "@/lib/vaults";
 import { DayDrawer, type DayFilter } from "@/components/DayDrawer";
 import { TransactionModal } from "@/components/TransactionModal";
@@ -54,6 +56,7 @@ const VIEW_TITLES: Record<ViewKey, string> = {
   orcamentos: "orçamentos",
   apartamento: "apartamento",
   cofres: "cofres",
+  bancos: "bancos",
   cartoes: "cartões de crédito",
   menu: "menu",
 };
@@ -63,6 +66,7 @@ export function FinanceApp() {
   const finance = useFinanceData();
   const { transactions, budgets, cards, vaults, loading } = finance;
   const apartment = useApartment();
+  const openFinance = useOpenFinance();
   const [planModalOpen, setPlanModalOpen] = useState(false);
   const [vaultModal, setVaultModal] = useState<{ editing: Vault | null; asReserve?: boolean } | null>(null);
   const [deletingVault, setDeletingVault] = useState<Vault | null>(null);
@@ -162,6 +166,12 @@ export function FinanceApp() {
   );
 
   const cardIndex = useMemo(() => indexCards(cards), [cards]);
+
+  /** Saldo que o app projeta para hoje: comparado com o do banco na tela de bancos. */
+  const appBalanceToday = useMemo(() => {
+    const [month] = buildLedger({ transactions, budgets, cards, today, from: todayMonth, to: todayMonth });
+    return month?.days.find((day) => day.isToday)?.saldo ?? 0;
+  }, [transactions, budgets, cards, today, todayMonth]);
   const cardUsage = useMemo(() => cardLimitUsage(transactions, cards, today), [transactions, cards, today]);
 
   // O dia mostra o que sai do bolso nele: a compra no cartão aparece no dia do
@@ -375,6 +385,94 @@ export function FinanceApp() {
     }
   }, [deletingVault, finance, showToast]);
 
+  const syncBanks = useCallback(async () => {
+    try {
+      const r = await openFinance.sync();
+      showToast(
+        r.naCaixa > 0
+          ? `${r.naCaixa} ${r.naCaixa === 1 ? "transação nova" : "transações novas"} na caixa de entrada.`
+          : r.novas > 0
+            ? `${r.novas} transações lidas, nenhuma precisa de você.`
+            : "nada novo nos bancos.",
+      );
+    } catch (error) {
+      console.error(error);
+      showToast("não foi possível ler os bancos agora.", "error");
+    }
+  }, [openFinance, showToast]);
+
+  const resolveBank = useCallback(
+    async (actions: ResolveAction[]) => {
+      try {
+        const { failed } = await openFinance.resolve(actions);
+        await finance.refreshTransactions();
+        const ok = actions.length - failed.length;
+        if (failed.length > 0) showToast(`${failed.length} não ${failed.length === 1 ? "deu" : "deram"} certo; tente de novo.`, "error");
+        else if (actions.some((a) => a.action === "import" || a.action === "link")) {
+          showToast(ok === 1 ? "lançado." : `${ok} lançados.`);
+        }
+      } catch (error) {
+        console.error(error);
+        showToast("não foi possível aplicar.", "error");
+      }
+    },
+    [openFinance, finance, showToast],
+  );
+
+  const adjustBalance = useCallback(
+    async (diff: number) => {
+      try {
+        await finance.createTransaction({
+          date: toDateStr(today),
+          type: diff > 0 ? "entrada" : "saida",
+          amount: Math.abs(Math.round(diff * 100) / 100),
+          description: "ajuste com o saldo do banco",
+        });
+        showToast("ajuste lançado. o saldo do app agora bate com o banco.");
+      } catch (error) {
+        console.error(error);
+        showToast("não foi possível lançar o ajuste.", "error");
+      }
+    },
+    [finance, today, showToast],
+  );
+
+  const linkBankCard = useCallback(
+    async (accountId: string, cardId: string | null) => {
+      try {
+        const account = openFinance.snapshot?.accounts.find((a) => a.id === accountId);
+        // Um cartão do banco corresponde a no máximo um cartão do app.
+        for (const card of cards.filter((c) => c.pluggyAccountId === accountId && c.id !== cardId)) {
+          await finance.saveCard({ ...card, limit: card.limit ?? null, pluggyAccountId: null });
+        }
+        if (cardId === NEW_CARD) {
+          const dueDay = account?.balanceDueDate ? Number(account.balanceDueDate.slice(8, 10)) : 10;
+          await finance.saveCard({
+            name: (account?.name ?? "cartão").toLowerCase(),
+            dueDay,
+            limit: account?.creditLimit ?? null,
+            pluggyAccountId: accountId,
+          });
+          showToast("cartão criado e vinculado.");
+        } else if (cardId) {
+          const card = cards.find((c) => c.id === cardId);
+          if (card) {
+            await finance.saveCard({
+              ...card,
+              limit: account?.creditLimit ?? card.limit ?? null,
+              pluggyAccountId: accountId,
+            });
+            showToast("cartão vinculado.");
+          }
+        }
+      } catch (error) {
+        console.error(error);
+        showToast("não foi possível vincular o cartão.", "error");
+      }
+    },
+    [openFinance.snapshot, cards, finance, showToast],
+  );
+
   /** Gera os lançamentos do plano e recarrega o saldo. */
   const syncPlan = useCallback(async () => {
     setPlanBusy(true);
@@ -468,6 +566,7 @@ export function FinanceApp() {
 
   return (
     <AppShell
+      hiddenViews={openFinance.enabled ? [] : ["bancos"]}
       view={view}
       onViewChange={setView}
       onAdd={() => openCreateModal()}
@@ -503,6 +602,8 @@ export function FinanceApp() {
           plan={apartment.plan}
           onOpenApartment={() => setView("apartamento")}
           onOpenVaults={() => setView("cofres")}
+          inboxCount={openFinance.enabled ? openFinance.pending.length : 0}
+          onOpenBanks={() => setView("bancos")}
           reserve={balances.find((b) => b.vault.kind === "reserva") ?? null}
           fixedCost={fixedCost}
           onSelectDay={(dateStr) => openDay(dateStr)}
@@ -558,6 +659,26 @@ export function FinanceApp() {
         />
       )}
 
+      {view === "bancos" && openFinance.enabled && (
+        <BanksView
+          syncedAt={openFinance.syncedAt}
+          snapshot={openFinance.snapshot}
+          pending={openFinance.pending}
+          ignored={openFinance.ignored}
+          linkedIds={openFinance.linkedIds}
+          syncing={openFinance.syncing}
+          transactions={transactions}
+          cards={cards}
+          vaults={vaults}
+          appBalanceToday={appBalanceToday}
+          today={today}
+          onSync={() => void syncBanks()}
+          onResolve={(actions) => void resolveBank(actions)}
+          onAdjustBalance={(diff) => void adjustBalance(diff)}
+          onLinkCard={(accountId, cardId) => void linkBankCard(accountId, cardId)}
+        />
+      )}
+
       {view === "orcamentos" && (
         <BudgetsView
           budgets={budgets}
@@ -595,6 +716,7 @@ export function FinanceApp() {
           onOpenHorizon={() => setView("horizonte")}
           onOpenApartment={() => setView("apartamento")}
           onOpenVaults={() => setView("cofres")}
+          onOpenBanks={openFinance.enabled ? () => setView("bancos") : undefined}
           onResetData={finance.resetAllData}
           dataCounts={{
             transactions: transactions.length,

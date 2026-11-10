@@ -37,12 +37,20 @@ export async function PATCH(
 
         const limit = data.limit === undefined ? undefined : Number(data.limit) > 0 ? Number(data.limit) : null;
 
+        const pluggyAccountId =
+            data.pluggyAccountId === undefined
+                ? undefined
+                : typeof data.pluggyAccountId === "string" && data.pluggyAccountId
+                  ? data.pluggyAccountId
+                  : null;
+
         const updatedCard = await prisma.card.update({
             where: { id },
             data: {
                 name: data.name,
                 dueDay: day,
                 ...(limit !== undefined && { limit }),
+                ...(pluggyAccountId !== undefined && { pluggyAccountId }),
             },
         });
 
