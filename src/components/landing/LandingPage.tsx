@@ -16,9 +16,10 @@ import {
   Wallet,
 } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
-import { formatCurrency, heatTone } from "@/lib/format";
+import { heatTone } from "@/lib/format";
 import { TypeBadge } from "@/components/ui/TypeBadge";
 import type { TxType } from "@/lib/types";
+import { Brl } from "@/components/ui/Brl";
 
 export function LandingPage() {
   const { theme, toggleTheme } = useTheme();
@@ -270,7 +271,7 @@ function HeroTable() {
                     <span className="flex items-center gap-2">
                       <TypeBadge type={row.type} size={16} />
                       <span className="text-[13px] font-medium tabular">
-                        {formatCurrency(row.value)}
+                        <Brl value={row.value} />
                       </span>
                     </span>
                   ) : (
@@ -282,7 +283,7 @@ function HeroTable() {
                     className="flex h-9 items-center justify-end px-3 text-[13px] font-semibold tabular"
                     style={{ background: tone.bg, color: tone.fg }}
                   >
-                    {formatCurrency(row.saldo)}
+                    <Brl value={row.saldo} />
                   </span>
                 </td>
               </tr>

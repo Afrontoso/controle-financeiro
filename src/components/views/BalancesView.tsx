@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { formatCurrency, heatTone } from "@/lib/format";
+import { heatTone } from "@/lib/format";
 import type { DayEntry, MonthEntry } from "@/lib/ledger";
 import { TX_TYPE_META, TX_TYPE_ORDER, type TxType } from "@/lib/types";
 import { TypeBadge } from "@/components/ui/TypeBadge";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { Brl } from "@/components/ui/Brl";
 
 interface BalancesViewProps {
   months: MonthEntry[];
@@ -248,7 +249,7 @@ function MonthTable({ month, columns, onSelectDay, ref, todayRowRef }: MonthTabl
                         }`}
                         style={zero ? undefined : { color: TX_TYPE_META[type].color }}
                       >
-                        {formatCurrency(value)}
+                        <Brl value={value} />
                       </span>
                     </span>
                   </td>
@@ -263,7 +264,7 @@ function MonthTable({ month, columns, onSelectDay, ref, todayRowRef }: MonthTabl
                     color: heatTone(day.saldo).fg,
                   }}
                 >
-                  {formatCurrency(day.saldo)}
+                  <Brl value={day.saldo} />
                 </span>
               </td>
             </tr>
@@ -281,7 +282,7 @@ function MonthTable({ month, columns, onSelectDay, ref, todayRowRef }: MonthTabl
                     className="truncate text-xs tabular md:text-[13px]"
                     style={{ color: TX_TYPE_META[type].color }}
                   >
-                    {formatCurrency(columnTotal(month, type))}
+                    <Brl value={columnTotal(month, type)} />
                   </span>
                 </span>
               </td>

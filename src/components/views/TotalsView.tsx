@@ -4,6 +4,7 @@ import { formatCurrency, formatPercent } from "@/lib/format";
 import type { AnnualSavings, GastoEntry, MonthSummary, SavingsTotal } from "@/lib/ledger";
 import { TX_TYPE_META, type TxType } from "@/lib/types";
 import { TypeBadge } from "@/components/ui/TypeBadge";
+import { Brl } from "@/components/ui/Brl";
 
 interface TotalsViewProps {
   summary: MonthSummary;
@@ -84,7 +85,7 @@ export function TotalsView({ summary, annual, savings, onSelectDay }: TotalsView
           <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-base font-semibold lowercase">orçamento do mês</h2>
             <span className="text-sm text-fg-muted tabular">
-              {formatCurrency(totals.gasto_diario)} de {formatCurrency(orcamentoMensal)}
+              <Brl value={totals.gasto_diario} /> de <Brl value={orcamentoMensal} />
             </span>
           </div>
 
@@ -121,7 +122,7 @@ export function TotalsView({ summary, annual, savings, onSelectDay }: TotalsView
           <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-base font-semibold lowercase">economias em {annual.year}</h2>
             <span className="text-sm text-fg-muted tabular">
-              {formatCurrency(annual.totalInvestido)} · {formatPercent(annual.totalPercent)}
+              <Brl value={annual.totalInvestido} /> · {formatPercent(annual.totalPercent)}
             </span>
           </div>
 
@@ -141,7 +142,7 @@ export function TotalsView({ summary, annual, savings, onSelectDay }: TotalsView
                     />
                   </div>
                   <span className="w-24 shrink-0 text-right text-xs tabular text-fg-muted">
-                    {formatCurrency(m.investido)}
+                    <Brl value={m.investido} />
                   </span>
                   <span className="w-10 shrink-0 text-right text-xs font-semibold tabular">
                     {formatPercent(m.percent, 0)}
@@ -167,11 +168,11 @@ export function TotalsView({ summary, annual, savings, onSelectDay }: TotalsView
               className="text-lg font-bold tabular"
               style={{ color: "var(--economia)" }}
             >
-              {formatCurrency(savings.guardado)}
+              <Brl value={savings.guardado} />
             </span>
             {savings.previsto > 0 && (
               <span className="w-full text-xs lowercase text-fg-subtle">
-                mais {formatCurrency(savings.previsto)} já lançados para os próximos meses
+                mais <Brl value={savings.previsto} /> já lançados para os próximos meses
               </span>
             )}
           </div>
@@ -181,7 +182,7 @@ export function TotalsView({ summary, annual, savings, onSelectDay }: TotalsView
           <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border-base px-5 py-4">
             <h2 className="text-base font-semibold lowercase">gastos do mês</h2>
             <span className="text-sm tabular" style={{ color: "var(--saida)" }}>
-              {formatCurrency(totalGastos)}
+              <Brl value={totalGastos} />
             </span>
           </div>
 
@@ -271,7 +272,7 @@ function GastoRow({ tx, onClick }: { tx: GastoEntry; onClick: () => void }) {
           </span>
         </span>
         <span className="shrink-0 font-semibold tabular" style={{ color: meta.color }}>
-          {formatCurrency(tx.amount)}
+          <Brl value={tx.amount} />
         </span>
       </button>
     </li>

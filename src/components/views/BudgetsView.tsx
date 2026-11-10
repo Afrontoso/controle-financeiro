@@ -1,9 +1,9 @@
 "use client";
 
 import { Pencil, Plus, Target, Trash2 } from "lucide-react";
-import { formatCurrency } from "@/lib/format";
 import { dailyDrain, monthlyBudgetTotal } from "@/lib/ledger";
 import type { Budget } from "@/lib/types";
+import { Brl } from "@/components/ui/Brl";
 
 interface BudgetsViewProps {
   budgets: Budget[];
@@ -22,12 +22,12 @@ export function BudgetsView({ budgets, onCreate, onEdit, onDelete }: BudgetsView
         <section className="grid grid-cols-2 gap-3">
           <div className="rounded-2xl border border-border-base bg-surface p-4">
             <p className="text-xs font-medium lowercase text-fg-muted">total mensal</p>
-            <p className="mt-1.5 text-2xl font-bold tabular">{formatCurrency(total)}</p>
+            <p className="mt-1.5 text-2xl font-bold tabular"><Brl value={total} /></p>
           </div>
           <div className="rounded-2xl border border-border-base bg-surface p-4">
             <p className="text-xs font-medium lowercase text-fg-muted">reserva diária</p>
             <p className="mt-1.5 text-2xl font-bold tabular" style={{ color: "var(--diario)" }}>
-              {formatCurrency(perDay)}
+              <Brl value={perDay} />
             </p>
           </div>
         </section>
@@ -53,13 +53,13 @@ export function BudgetsView({ budgets, onCreate, onEdit, onDelete }: BudgetsView
               <div className="min-w-0 flex-1">
                 <h3 className="truncate font-medium lowercase">{budget.name}</h3>
                 <p className="text-xs text-fg-subtle tabular">
-                  {formatCurrency(budget.amount / budget.divideBy)} por dia · dividido por{" "}
+                  <Brl value={budget.amount / budget.divideBy} /> por dia · dividido por{" "}
                   {budget.divideBy} dias
                 </p>
               </div>
 
               <span className="shrink-0 font-semibold tabular">
-                {formatCurrency(budget.amount)}
+                <Brl value={budget.amount} />
               </span>
 
               <div className="flex shrink-0 items-center gap-1">

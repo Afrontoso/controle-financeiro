@@ -10,7 +10,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { dayShortLabel, formatCurrency, formatDayMonth } from "@/lib/format";
+import { dayShortLabel, formatDayMonth } from "@/lib/format";
 import {
   TX_TYPE_META,
   TX_TYPE_ORDER,
@@ -20,6 +20,7 @@ import {
 } from "@/lib/types";
 import { Select, type SelectOption } from "@/components/ui/Select";
 import { TypeBadge } from "@/components/ui/TypeBadge";
+import { Brl } from "@/components/ui/Brl";
 
 /** Exportado porque quem abre o drawer decide o filtro inicial. */
 export type DayFilter = TxType | "todos";
@@ -201,7 +202,7 @@ export function DayDrawer({
               {filter === "todos" ? "saldo do dia" : `total de ${TX_TYPE_META[filter].label}`}
             </span>
             <span className="font-semibold tabular" style={{ color: totalColor }}>
-              {formatCurrency(total)}
+              <Brl value={total} />
             </span>
           </footer>
         )}
@@ -250,7 +251,7 @@ function TransactionRow({
         <TypeBadge type={tx.type} size={20} />
         <span className="min-w-0 flex-1 truncate font-medium lowercase">{tx.description}</span>
         <span className="shrink-0 font-semibold tabular" style={{ color: meta.color }}>
-          {formatCurrency(tx.amount)}
+          <Brl value={tx.amount} />
         </span>
         <button
           type="button"

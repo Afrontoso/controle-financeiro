@@ -5,6 +5,7 @@ import { Banknote, CalendarDays, Tag } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { formatCurrency } from "@/lib/format";
 import type { Budget } from "@/lib/types";
+import { Brl } from "@/components/ui/Brl";
 
 interface BudgetModalProps {
   onClose: () => void;
@@ -88,7 +89,7 @@ export function BudgetModal({ onClose, editing, submitting, onSubmit }: BudgetMo
           <p className="py-4 text-sm text-fg-muted">
             reserva{" "}
             <strong className="font-semibold text-fg tabular">
-              {formatCurrency(amount / days)}
+              <Brl value={amount / days} />
             </strong>{" "}
             por dia no saldo projetado.
           </p>
