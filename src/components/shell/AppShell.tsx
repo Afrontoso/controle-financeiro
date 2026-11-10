@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   CalendarDays,
   ChevronLeft,
+  Gauge,
   LayoutGrid,
   Menu,
   Plus,
@@ -13,18 +14,29 @@ import {
 } from "lucide-react";
 
 /** "cartoes" não fica na navegação: abre a partir do menu. */
-export type ViewKey = "saldos" | "totais" | "horizonte" | "orcamentos" | "cartoes" | "menu";
+export type ViewKey =
+  | "visao"
+  | "saldos"
+  | "totais"
+  | "horizonte"
+  | "orcamentos"
+  | "cartoes"
+  | "menu";
 
 interface NavItem {
   key: ViewKey;
   label: string;
   icon: typeof Wallet;
+  /** Fora da barra do celular, que só comporta quatro abas além do menu. */
+  desktopOnly?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
+  { key: "visao", label: "visão geral", icon: Gauge },
   { key: "saldos", label: "saldos", icon: LayoutGrid },
   { key: "totais", label: "totais", icon: Sigma },
-  { key: "horizonte", label: "horizonte", icon: CalendarDays },
+  // No celular o horizonte abre pelo menu.
+  { key: "horizonte", label: "horizonte", icon: CalendarDays, desktopOnly: true },
   { key: "orcamentos", label: "orçamentos", icon: Target },
 ];
 
@@ -196,10 +208,11 @@ interface TabBarProps {
 }
 
 function MobileTabBar({ view, onViewChange, onAdd }: TabBarProps) {
-  const left = NAV_ITEMS.slice(0, 2);
-  const right = NAV_ITEMS.slice(2);
-  // Cartões nasce do menu, então mantém a aba do menu acesa enquanto está aberta.
-  const menuActive = view === "menu" || view === "cartoes";
+  const mobileItems = NAV_ITEMS.filter((item) => !item.desktopOnly);
+  const left = mobileItems.slice(0, 2);
+  const right = mobileItems.slice(2);
+  // Cartões e horizonte nascem do menu no celular: a aba do menu fica acesa.
+  const menuActive = view === "menu" || view === "cartoes" || view === "horizonte";
 
   return (
     <nav
@@ -271,7 +284,7 @@ function TabButton({
       }`}
     >
       <Icon size={20} strokeWidth={active ? 2.4 : 2} />
-      <span className="truncate px-1">{item.label}</span>
+      <span className="truncate px-1">{item.key === "visao" ? "visão" : item.label}</span>
     </button>
   );
 }

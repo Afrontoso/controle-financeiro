@@ -8,6 +8,7 @@ import { TotalsView } from "@/components/views/TotalsView";
 import { BudgetsView } from "@/components/views/BudgetsView";
 import { CardsView } from "@/components/views/CardsView";
 import { MenuView } from "@/components/views/MenuView";
+import { OverviewView } from "@/components/views/OverviewView";
 import { DayDrawer, type DayFilter } from "@/components/DayDrawer";
 import { TransactionModal } from "@/components/TransactionModal";
 import { BudgetModal } from "@/components/BudgetModal";
@@ -34,7 +35,11 @@ import type { Budget, Card, Transaction, TxType } from "@/lib/types";
 /** Meses exibidos de uma vez em saldos e horizonte. */
 const WINDOW_SPAN = 12;
 
+/** Meses da visão geral: o escolhido e os seguintes, para faturas e projeção. */
+const OVERVIEW_SPAN = 6;
+
 const VIEW_TITLES: Record<ViewKey, string> = {
+  visao: "visão geral",
   saldos: "saldos",
   totais: "totais",
   horizonte: "horizonte de saldos",
@@ -54,9 +59,10 @@ export function FinanceApp() {
     [today],
   );
 
-  const [view, setView] = useState<ViewKey>("saldos");
+  const [view, setView] = useState<ViewKey>("visao");
   const [windowStart, setWindowStart] = useState<YearMonth>(todayMonth);
   const [totalsMonth, setTotalsMonth] = useState<YearMonth>(todayMonth);
+  const [overviewMonth, setOverviewMonth] = useState<YearMonth>(todayMonth);
   const [mobileType, setMobileType] = useState<TxType>("saida");
   const [scrollToTodayToken, setScrollToTodayToken] = useState(0);
 
@@ -94,6 +100,19 @@ export function FinanceApp() {
         to: shiftMonth(windowStart, WINDOW_SPAN - 1),
       }),
     [transactions, budgets, cards, today, windowStart],
+  );
+
+  const overviewMonths: MonthEntry[] = useMemo(
+    () =>
+      buildLedger({
+        transactions,
+        budgets,
+        cards,
+        today,
+        from: overviewMonth,
+        to: shiftMonth(overviewMonth, OVERVIEW_SPAN - 1),
+      }),
+    [transactions, budgets, cards, today, overviewMonth],
   );
 
   const summary = useMemo(() => {
@@ -138,6 +157,7 @@ export function FinanceApp() {
   const goToToday = useCallback(() => {
     setWindowStart(todayMonth);
     setTotalsMonth(todayMonth);
+    setOverviewMonth(todayMonth);
     setScrollToTodayToken((token) => token + 1);
   }, [todayMonth]);
 
@@ -318,8 +338,24 @@ export function FinanceApp() {
           <PeriodPicker start={windowStart} span={WINDOW_SPAN} onChange={setWindowStart} />
         ) : view === "totais" ? (
           <PeriodPicker start={totalsMonth} span={1} onChange={setTotalsMonth} />
+        ) : view === "visao" ? (
+          <PeriodPicker start={overviewMonth} span={1} onChange={setOverviewMonth} />
         ) : null}
       </ViewHeader>
+
+      {view === "visao" && (
+        <OverviewView
+          months={overviewMonths}
+          cards={cards}
+          savings={savings}
+          today={today}
+          onSelectDay={(dateStr) => openDay(dateStr)}
+          onOpenMonth={(year, month) => {
+            setTotalsMonth({ year, month });
+            setView("totais");
+          }}
+        />
+      )}
 
       {view === "saldos" && (
         <BalancesView
@@ -376,6 +412,7 @@ export function FinanceApp() {
       {view === "menu" && (
         <MenuView
           onOpenCards={() => setView("cartoes")}
+          onOpenHorizon={() => setView("horizonte")}
           onResetData={finance.resetAllData}
           dataCounts={{
             transactions: transactions.length,

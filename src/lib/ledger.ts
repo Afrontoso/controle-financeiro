@@ -330,6 +330,160 @@ export function summarizeMonth(
   };
 }
 
+/* ------------------------------------------------------------------ */
+/* Visão geral                                                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Para onde vai o dinheiro do mês. Soma exatamente o que o ledger movimenta no
+ * saldo, dia a dia: `sobra` é a variação do saldo do primeiro ao último dia.
+ */
+export interface MonthBreakdown {
+  key: string;
+  year: number;
+  month: number;
+  label: string;
+  entradas: number;
+  /** Saídas avulsas e recorrentes. */
+  contas: number;
+  /** Faturas que vencem no mês (compras do cartão empurradas pro vencimento). */
+  cartao: number;
+  /** Gasto diário lançado + cota dos orçamentos de hoje em diante. */
+  diarios: number;
+  economias: number;
+  /** entradas − contas − cartão − diários − economias. */
+  sobra: number;
+  /** Saldo acumulado no último dia do mês. */
+  saldoFinal: number;
+  isCurrent: boolean;
+}
+
+export function breakdownMonth(month: MonthEntry): MonthBreakdown {
+  let diarios = 0;
+  // Igual ao buildLedger: o lançado conta sempre, e a cota só de hoje em diante
+  // (no passado `drain` já é zero).
+  for (const day of month.days) {
+    diarios += day.totals.gasto_diario + day.drain;
+  }
+  const { entrada, saida, cartao, investimento } = month.totals;
+
+  return {
+    key: month.key,
+    year: month.year,
+    month: month.month,
+    label: month.label,
+    entradas: entrada,
+    contas: saida,
+    cartao,
+    diarios,
+    economias: investimento,
+    sobra: entrada - saida - cartao - diarios - investimento,
+    saldoFinal: month.days.at(-1)?.saldo ?? 0,
+    isCurrent: month.isCurrent,
+  };
+}
+
+/** Uma conta a pagar do mês: uma saída, ou a fatura inteira de um cartão. */
+export interface BillItem {
+  id: string;
+  label: string;
+  amount: number;
+  type: "saida" | "cartao";
+  /** Dia em que sai do saldo (no cartão, o vencimento). */
+  dateStr: string;
+  /** Quantos lançamentos foram somados (faturas agregam várias compras). */
+  count: number;
+}
+
+export interface BillDay {
+  dateStr: string;
+  day: number;
+  isPast: boolean;
+  isToday: boolean;
+  total: number;
+  items: BillItem[];
+}
+
+/**
+ * Contas do mês agrupadas pelo dia em que saem do saldo. As compras de cada
+ * cartão viram um item só, a fatura, como aparece no extrato do banco.
+ */
+export function billsOfMonth(month: MonthEntry, cards: Card[]): BillDay[] {
+  const cardNames = new Map(cards.map((card) => [card.id, card.name]));
+  const result: BillDay[] = [];
+
+  for (const day of month.days) {
+    const items: BillItem[] = [];
+    const faturas = new Map<string, BillItem>();
+
+    for (const tx of day.transactions) {
+      if (tx.type === "saida") {
+        items.push({
+          id: tx.id,
+          label: tx.description,
+          amount: tx.amount,
+          type: "saida",
+          dateStr: day.dateStr,
+          count: 1,
+        });
+      } else if (tx.type === "cartao") {
+        const key = tx.cardId ?? `avulso-${tx.id}`;
+        const existing = faturas.get(key);
+        if (existing) {
+          existing.amount += tx.amount;
+          existing.count += 1;
+        } else {
+          const name = tx.cardId ? cardNames.get(tx.cardId) : undefined;
+          faturas.set(key, {
+            id: `${day.dateStr}-${key}`,
+            label: name ? `fatura ${name}` : tx.description,
+            amount: tx.amount,
+            type: "cartao",
+            dateStr: day.dateStr,
+            count: 1,
+          });
+        }
+      }
+    }
+
+    items.push(...faturas.values());
+    if (items.length === 0) continue;
+
+    items.sort((a, b) => b.amount - a.amount);
+    result.push({
+      dateStr: day.dateStr,
+      day: day.day,
+      isPast: day.isPast,
+      isToday: day.isToday,
+      total: items.reduce((sum, item) => sum + item.amount, 0),
+      items,
+    });
+  }
+
+  return result;
+}
+
+/** Fatura de cada cartão em cada mês da janela, pelo mês do vencimento. */
+export interface CardForecast {
+  card: Card;
+  months: { key: string; label: string; amount: number }[];
+}
+
+export function cardForecasts(months: MonthEntry[], cards: Card[]): CardForecast[] {
+  return cards.map((card) => ({
+    card,
+    months: months.map((month) => {
+      let amount = 0;
+      for (const day of month.days) {
+        for (const tx of day.transactions) {
+          if (tx.type === "cartao" && tx.cardId === card.id) amount += tx.amount;
+        }
+      }
+      return { key: month.key, label: month.label, amount };
+    }),
+  }));
+}
+
 export interface SavingsTotal {
   /** Tudo que já foi guardado até hoje, somando todos os anos. */
   guardado: number;
