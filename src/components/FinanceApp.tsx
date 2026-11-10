@@ -376,6 +376,12 @@ export function FinanceApp() {
       {view === "menu" && (
         <MenuView
           onOpenCards={() => setView("cartoes")}
+          onResetData={finance.resetAllData}
+          dataCounts={{
+            transactions: transactions.length,
+            budgets: budgets.length,
+            cards: cards.length,
+          }}
           // "ir pra hoje" a partir do menu só faz sentido de volta na tabela.
           onGoToday={() => {
             setView("saldos");

@@ -15,11 +15,13 @@ import {
   Moon,
   Share2,
   Sun,
+  Trash2,
 } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 import { useToast } from "@/components/ui/Toast";
 import { SuggestionModal } from "@/components/SuggestionModal";
 import { DonateModal } from "@/components/DonateModal";
+import { ResetDataModal } from "@/components/ResetDataModal";
 
 /** Definidas no build; sem nenhuma das duas a opção de apoio nem aparece. */
 const PIX_KEY = process.env.NEXT_PUBLIC_PIX_KEY ?? "";
@@ -28,15 +30,18 @@ const PIX_PAYLOAD = process.env.NEXT_PUBLIC_PIX_PAYLOAD ?? "";
 interface MenuViewProps {
   onOpenCards: () => void;
   onGoToday: () => void;
+  onResetData: () => Promise<void>;
+  dataCounts: { transactions: number; budgets: number; cards: number };
 }
 
-export function MenuView({ onOpenCards, onGoToday }: MenuViewProps) {
+export function MenuView({ onOpenCards, onGoToday, onResetData, dataCounts }: MenuViewProps) {
   const { theme, toggleTheme } = useTheme();
   const { data: session } = useSession();
   const showToast = useToast();
 
   const [suggestionOpen, setSuggestionOpen] = useState(false);
   const [donateOpen, setDonateOpen] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
 
   const share = async () => {
     const url = window.location.origin;
@@ -125,6 +130,23 @@ export function MenuView({ onOpenCards, onGoToday }: MenuViewProps) {
           <MenuRow icon={LogOut} label="sair" onClick={() => void signOut()} chevron={false} danger />
         </section>
 
+        {/* Separado do resto de propósito: ninguém deve tocar aqui por engano. */}
+        <section className="flex flex-col gap-2">
+          <h3 className="px-2 text-xs font-medium lowercase text-fg-subtle">zona de perigo</h3>
+          <div
+            className="overflow-hidden rounded-2xl border bg-surface"
+            style={{ borderColor: "var(--saida)" }}
+          >
+            <MenuRow
+              icon={Trash2}
+              label="zerar todos os dados"
+              hint="irreversível"
+              onClick={() => setResetOpen(true)}
+              danger
+            />
+          </div>
+        </section>
+
         <footer className="flex items-center justify-between px-2 pb-2 text-xs text-fg-subtle">
           <span className="lowercase">victor assis</span>
           <span className="flex items-center gap-3">
@@ -157,6 +179,13 @@ export function MenuView({ onOpenCards, onGoToday }: MenuViewProps) {
           pixKey={PIX_KEY}
           pixPayload={PIX_PAYLOAD}
           onClose={() => setDonateOpen(false)}
+        />
+      )}
+      {resetOpen && (
+        <ResetDataModal
+          counts={dataCounts}
+          onConfirm={onResetData}
+          onClose={() => setResetOpen(false)}
         />
       )}
     </div>

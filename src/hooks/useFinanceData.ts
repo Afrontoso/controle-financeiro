@@ -258,11 +258,24 @@ export function useFinanceData() {
     [refreshCards, refreshTransactions],
   );
 
+  const resetAllData = useCallback(async () => {
+    const res = await fetch("/api/account/data", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirm: "zerar" }),
+    });
+    if (!res.ok) throw new Error("Falha ao zerar os dados");
+    setTransactions([]);
+    setBudgets([]);
+    setCards([]);
+  }, []);
+
   return {
     transactions,
     budgets,
     cards,
     loading,
+    resetAllData,
     createTransaction,
     updateTransaction,
     deleteTransaction,
