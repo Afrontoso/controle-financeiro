@@ -275,6 +275,7 @@ export function useFinanceData() {
     budgets,
     cards,
     loading,
+    refreshTransactions,
     resetAllData,
     createTransaction,
     updateTransaction,

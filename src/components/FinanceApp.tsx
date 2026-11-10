@@ -9,6 +9,8 @@ import { BudgetsView } from "@/components/views/BudgetsView";
 import { CardsView } from "@/components/views/CardsView";
 import { MenuView } from "@/components/views/MenuView";
 import { OverviewView } from "@/components/views/OverviewView";
+import { ApartmentView } from "@/components/views/ApartmentView";
+import { ApartmentPlanModal } from "@/components/ApartmentPlanModal";
 import { DayDrawer, type DayFilter } from "@/components/DayDrawer";
 import { TransactionModal } from "@/components/TransactionModal";
 import { BudgetModal } from "@/components/BudgetModal";
@@ -18,6 +20,8 @@ import { ViewHeader } from "@/components/ui/ViewHeader";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import { useFinanceData, type TransactionPayload } from "@/hooks/useFinanceData";
+import { useApartment } from "@/hooks/useApartment";
+import { EMPTY_PREMISES, isPlanComplete, type ApartmentPremises } from "@/lib/apartment";
 import {
   buildLedger,
   chargeDateOf,
@@ -44,6 +48,7 @@ const VIEW_TITLES: Record<ViewKey, string> = {
   totais: "totais",
   horizonte: "horizonte de saldos",
   orcamentos: "orçamentos",
+  apartamento: "apartamento",
   cartoes: "cartões de crédito",
   menu: "menu",
 };
@@ -52,6 +57,10 @@ export function FinanceApp() {
   const showToast = useToast();
   const finance = useFinanceData();
   const { transactions, budgets, cards, loading } = finance;
+  const apartment = useApartment();
+  const [planModalOpen, setPlanModalOpen] = useState(false);
+  const [deletingPlan, setDeletingPlan] = useState(false);
+  const [planBusy, setPlanBusy] = useState(false);
 
   const [today] = useState(() => new Date());
   const todayMonth = useMemo<YearMonth>(
@@ -303,6 +312,57 @@ export function FinanceApp() {
     }
   }, [deletingCard, finance, showToast]);
 
+  /** Gera os lançamentos do plano e recarrega o saldo. */
+  const syncPlan = useCallback(async () => {
+    setPlanBusy(true);
+    try {
+      const created = await apartment.syncTransactions();
+      await finance.refreshTransactions();
+      showToast(`${created} lançamentos do apê no saldo.`);
+    } catch (error) {
+      console.error(error);
+      showToast("não foi possível lançar o plano.", "error");
+    } finally {
+      setPlanBusy(false);
+    }
+  }, [apartment, finance, showToast]);
+
+  const savePlan = useCallback(
+    async (premises: ApartmentPremises) => {
+      setPlanBusy(true);
+      try {
+        await apartment.savePlan(premises);
+        setPlanModalOpen(false);
+        showToast(
+          isPlanComplete(premises)
+            ? "premissas salvas. toque em “lançar no saldo” para atualizar as parcelas."
+            : "premissas salvas.",
+        );
+      } catch (error) {
+        console.error(error);
+        showToast("não foi possível salvar as premissas.", "error");
+      } finally {
+        setPlanBusy(false);
+      }
+    },
+    [apartment, showToast],
+  );
+
+  const confirmDeletePlan = useCallback(async () => {
+    setPlanBusy(true);
+    try {
+      await apartment.deletePlan();
+      await finance.refreshTransactions();
+      setDeletingPlan(false);
+      showToast("plano excluído.");
+    } catch (error) {
+      console.error(error);
+      showToast("não foi possível excluir o plano.", "error");
+    } finally {
+      setPlanBusy(false);
+    }
+  }, [apartment, finance, showToast]);
+
   const stepDay = useCallback((delta: number) => {
     setSelectedDay((current) => {
       if (!current) return current;
@@ -349,6 +409,8 @@ export function FinanceApp() {
           cards={cards}
           savings={savings}
           today={today}
+          plan={apartment.plan}
+          onOpenApartment={() => setView("apartamento")}
           onSelectDay={(dateStr) => openDay(dateStr)}
           onOpenMonth={(year, month) => {
             setTotalsMonth({ year, month });
@@ -377,6 +439,17 @@ export function FinanceApp() {
 
       {view === "totais" && summary && (
         <TotalsView summary={summary} annual={annual} savings={savings} onSelectDay={openDay} />
+      )}
+
+      {view === "apartamento" && (
+        <ApartmentView
+          plan={apartment.plan}
+          today={today}
+          busy={planBusy}
+          onEdit={() => setPlanModalOpen(true)}
+          onSync={() => void syncPlan()}
+          onDelete={() => setDeletingPlan(true)}
+        />
       )}
 
       {view === "orcamentos" && (
@@ -413,6 +486,7 @@ export function FinanceApp() {
         <MenuView
           onOpenCards={() => setView("cartoes")}
           onOpenHorizon={() => setView("horizonte")}
+          onOpenApartment={() => setView("apartamento")}
           onResetData={finance.resetAllData}
           dataCounts={{
             transactions: transactions.length,
@@ -561,6 +635,31 @@ export function FinanceApp() {
             {
               label: "excluir cartão",
               onClick: () => void confirmDeleteCard(),
+              tone: "danger",
+            },
+          ]}
+        />
+      )}
+
+      {planModalOpen && (
+        <ApartmentPlanModal
+          initial={apartment.plan ?? EMPTY_PREMISES}
+          busy={planBusy}
+          onClose={() => setPlanModalOpen(false)}
+          onSave={(premises) => void savePlan(premises)}
+        />
+      )}
+
+      {deletingPlan && (
+        <ConfirmDialog
+          onClose={() => setDeletingPlan(false)}
+          title="excluir plano do apartamento"
+          description="as premissas e as parcelas do apê de hoje em diante saem do saldo. as que já passaram continuam lançadas."
+          busy={planBusy}
+          actions={[
+            {
+              label: "excluir plano",
+              onClick: () => void confirmDeletePlan(),
               tone: "danger",
             },
           ]}

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { signOut, useSession } from "next-auth/react";
 import {
   Bug,
+  Building2,
   CalendarDays,
   CalendarRange,
   ChevronRight,
@@ -31,12 +32,13 @@ const PIX_PAYLOAD = process.env.NEXT_PUBLIC_PIX_PAYLOAD ?? "";
 interface MenuViewProps {
   onOpenCards: () => void;
   onOpenHorizon: () => void;
+  onOpenApartment: () => void;
   onGoToday: () => void;
   onResetData: () => Promise<void>;
   dataCounts: { transactions: number; budgets: number; cards: number };
 }
 
-export function MenuView({ onOpenCards, onOpenHorizon, onGoToday, onResetData, dataCounts }: MenuViewProps) {
+export function MenuView({ onOpenCards, onOpenHorizon, onOpenApartment, onGoToday, onResetData, dataCounts }: MenuViewProps) {
   const { theme, toggleTheme } = useTheme();
   const { data: session } = useSession();
   const showToast = useToast();
@@ -97,7 +99,15 @@ export function MenuView({ onOpenCards, onOpenHorizon, onGoToday, onResetData, d
             onClick={onOpenCards}
           />
 
-          {/* No desktop esses dois atalhos já vivem na barra lateral. */}
+          {/* No desktop estes atalhos já vivem na barra lateral. */}
+          <MenuRow
+            icon={Building2}
+            label="apartamento"
+            hint="financiamento"
+            onClick={onOpenApartment}
+            className="md:hidden"
+          />
+
           <MenuRow
             icon={CalendarRange}
             label="horizonte de saldos"

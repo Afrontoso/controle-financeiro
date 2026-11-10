@@ -1,8 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Check, CreditCard, Info } from "lucide-react";
-import { formatCurrency, formatPercent } from "@/lib/format";
+import { Building2, Check, ChevronRight, CreditCard, Info, TriangleAlert } from "lucide-react";
+import { formatCurrency, formatDayMonth, formatPercent } from "@/lib/format";
+import {
+  buildSchedule,
+  COMPONENTS,
+  isPlanComplete,
+  type ApartmentPremises,
+  type Deadline,
+} from "@/lib/apartment";
 import {
   billsOfMonth,
   breakdownMonth,
@@ -18,14 +25,20 @@ import type { Card } from "@/lib/types";
 /** Quantos dias à frente uma conta conta como "vence logo". */
 const SOON_DAYS = 5;
 
+/** Prazos do imóvel que aparecem no topo da visão geral. */
+const DEADLINE_WINDOW_DAYS = 90;
+
 interface OverviewViewProps {
   /** O mês em tela primeiro, seguido dos próximos (para projeção e faturas). */
   months: MonthEntry[];
   cards: Card[];
   savings: SavingsTotal;
   today: Date;
+  /** Plano do apartamento, se houver: liga o card de moradia e os prazos. */
+  plan?: ApartmentPremises | null;
   onSelectDay: (dateStr: string) => void;
   onOpenMonth: (year: number, month: number) => void;
+  onOpenApartment: () => void;
 }
 
 export function OverviewView({
@@ -33,8 +46,10 @@ export function OverviewView({
   cards,
   savings,
   today,
+  plan,
   onSelectDay,
   onOpenMonth,
+  onOpenApartment,
 }: OverviewViewProps) {
   const breakdowns = useMemo(() => months.map(breakdownMonth), [months]);
   const current = months[0];
@@ -42,11 +57,14 @@ export function OverviewView({
   const bills = useMemo(() => (current ? billsOfMonth(current, cards) : []), [current, cards]);
   const forecasts = useMemo(() => cardForecasts(months.slice(0, 4), cards), [months, cards]);
 
+  const hasPlan = Boolean(plan && isPlanComplete(plan));
+
   if (!current || !summary) return null;
 
   return (
     <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-3 md:p-6">
       <div className="mx-auto grid max-w-5xl grid-cols-1 gap-3 md:gap-4 lg:grid-cols-3">
+        {plan && <DeadlineBanner prazos={plan.prazos} today={today} onOpen={onOpenApartment} />}
         <SobraCard summary={summary} className="lg:col-span-2" />
         <ComprometidoCard summary={summary} />
         <BillsCard
@@ -57,7 +75,14 @@ export function OverviewView({
         />
         <CardsCard forecasts={forecasts} />
         <EconomiasCard summary={summary} savings={savings} />
-        <ProjecaoCard breakdowns={breakdowns} onOpenMonth={onOpenMonth} className="lg:col-span-3" />
+        {hasPlan && plan && (
+          <MoradiaCard plan={plan} summary={summary} onOpen={onOpenApartment} />
+        )}
+        <ProjecaoCard
+          breakdowns={breakdowns}
+          onOpenMonth={onOpenMonth}
+          className={hasPlan ? "lg:col-span-2" : "lg:col-span-3"}
+        />
       </div>
     </div>
   );
@@ -448,6 +473,119 @@ function ProjecaoCard({
           );
         })}
       </div>
+    </Panel>
+  );
+}
+
+function DeadlineBanner({
+  prazos,
+  today,
+  onOpen,
+}: {
+  prazos: Deadline[];
+  today: Date;
+  onOpen: () => void;
+}) {
+  const todayMs = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  const proximos = prazos
+    .map((p) => ({ ...p, days: Math.round((Date.parse(`${p.data}T00:00:00`) - todayMs) / 86_400_000) }))
+    .filter((p) => p.days >= 0 && p.days <= DEADLINE_WINDOW_DAYS);
+
+  if (proximos.length === 0) return null;
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex w-full items-start gap-3 rounded-2xl border p-4 text-left lg:col-span-3"
+      style={{ borderColor: "var(--saida)", background: "var(--saida-soft)", color: "var(--saida)" }}
+    >
+      <TriangleAlert size={20} className="mt-0.5 shrink-0" />
+      <span className="min-w-0 flex-1">
+        {proximos.map((p) => (
+          <span key={`${p.data}-${p.titulo}`} className="block text-sm lowercase">
+            <span className="font-semibold tabular">
+              {p.days === 0 ? "hoje" : p.days === 1 ? "amanhã" : `em ${p.days} dias`} ({formatDayMonth(p.data)})
+            </span>{" "}
+            · {p.titulo}
+          </span>
+        ))}
+      </span>
+      <ChevronRight size={18} className="mt-0.5 shrink-0" />
+    </button>
+  );
+}
+
+const MORADIA_COLORS: Record<string, string> = {
+  aluguel: "var(--fg-subtle)",
+  construtora: "var(--cartao)",
+  despachante: "var(--diario)",
+  jurosObra: "var(--saida)",
+  banco: "#2563eb",
+  condominio: "var(--economia)",
+};
+
+function MoradiaCard({
+  plan,
+  summary,
+  onOpen,
+}: {
+  plan: ApartmentPremises;
+  summary: MonthBreakdown;
+  onOpen: () => void;
+}) {
+  const [m] = buildSchedule(plan, summary.key, summary.key);
+  if (!m) return null;
+
+  const pctBanco = plan.rendaBanco > 0 ? (m.total / plan.rendaBanco) * 100 : 0;
+  const pctEntradas = summary.entradas > 0 ? (m.total / summary.entradas) * 100 : 0;
+  const tone = pctBanco > 50 ? "var(--saida)" : pctBanco > 30 ? "var(--diario)" : "var(--entrada)";
+
+  return (
+    <Panel
+      title="moradia"
+      info="aluguel e tudo do apê neste mês (construtora, despachante, juros de obra, banco, condomínio), calculado pelas premissas do imóvel. o percentual principal é sobre a renda que o banco considera; a caixa aprova parcela até 30% dela."
+      aside={
+        <button type="button" onClick={onOpen} className="flex items-center gap-1 text-xs lowercase text-fg-subtle hover:text-fg">
+          <Building2 size={13} /> apê
+        </button>
+      }
+    >
+      {plan.rendaBanco > 0 ? (
+        <p className="text-2xl font-bold tabular md:text-3xl" style={{ color: tone }}>
+          {formatPercent(pctBanco, 0)}
+          <span className="ml-1.5 text-xs font-normal lowercase text-fg-subtle">da renda do banco</span>
+        </p>
+      ) : (
+        <Money value={m.total} color="var(--fg)" big />
+      )}
+      <p className="mt-0.5 text-xs lowercase text-fg-subtle">
+        {formatCurrency(m.total)}
+        {summary.entradas > 0 && ` · ${formatPercent(pctEntradas, 0)} de todas as entradas`} · {m.fase}
+      </p>
+
+      <div className="relative mt-4 h-2.5 w-full rounded-full bg-surface-3">
+        <div className="flex h-full overflow-hidden rounded-full" style={{ width: `${Math.min(pctBanco, 100)}%` }}>
+          {COMPONENTS.map((c) =>
+            m[c.key] > 0 ? (
+              <div key={c.key} style={{ width: `${(m[c.key] / m.total) * 100}%`, background: MORADIA_COLORS[c.key] }} />
+            ) : null,
+          )}
+        </div>
+        {plan.rendaBanco > 0 && (
+          <span className="absolute -top-1 -bottom-1 w-0.5 rounded-full bg-fg" style={{ left: "30%", opacity: 0.5 }} />
+        )}
+      </div>
+
+      <dl className="mt-3 flex flex-col gap-1 text-xs">
+        {COMPONENTS.filter((c) => m[c.key] > 0).map((c) => (
+          <div key={c.key} className="flex items-center gap-2">
+            <span className="size-1.5 shrink-0 rounded-full" style={{ background: MORADIA_COLORS[c.key] }} />
+            <dt className="lowercase text-fg-muted">{c.label}</dt>
+            <dd className="ml-auto tabular">{formatCurrency(m[c.key])}</dd>
+          </div>
+        ))}
+      </dl>
     </Panel>
   );
 }

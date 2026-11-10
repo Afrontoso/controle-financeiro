@@ -26,9 +26,14 @@ model Transaction {
   cardId      String?
   card        Card?    @relation(fields: [cardId], references: [id], onDelete: SetNull)
 
+  /// Quem gerou o lançamento quando não foi digitado à mão, ex.: "apto:construtora".
+  /// Permite refazer os lançamentos de um plano sem tocar nos manuais.
+  source      String?
+
   @@index([userId])
   @@index([groupId])
   @@index([cardId])
+  @@index([userId, source])
 }
 
 model Card {
@@ -57,6 +62,18 @@ model Budget {
   user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+/// Plano de compra de um imóvel: premissas do contrato e do financiamento.
+/// Fica em JSON porque os campos ainda vão mudar muito; quem valida é src/lib/apartment.ts.
+model ApartmentPlan {
+  id        String   @id @default(uuid())
+  premises  Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Account {
@@ -98,6 +115,7 @@ model User {
   transactions  Transaction[]
   budgets       Budget[]
   cards         Card[]
+  apartmentPlan ApartmentPlan?
 }
 
 model VerificationToken {
