@@ -1,5 +1,6 @@
-import type { Transaction, Vault } from "@/lib/types";
+import type { Budget, Transaction, Vault } from "@/lib/types";
 import { toDateStr } from "@/lib/format";
+import { monthlyBudgetTotal } from "@/lib/ledger";
 
 /**
  * Cofres: dinheiro separado para um fim. Guardar é uma economia ligada ao cofre
@@ -15,6 +16,10 @@ export interface VaultBalance {
   previsto: number;
   /** Quanto entrou no cofre no mês corrente (líquido). */
   noMes: number;
+  /** Meta em reais: a fixa, ou N meses do custo fixo quando automática; null sem meta. */
+  meta: number | null;
+  /** A meta acompanha o custo de vida fixo. */
+  metaAutomatica: boolean;
   /** Fração da meta atingida (0–1+); null sem meta. */
   progresso: number | null;
   /** Quanto falta para a meta (0 se passou); null sem meta. */
@@ -30,7 +35,12 @@ function vaultDelta(tx: Transaction): number {
   return 0;
 }
 
-export function vaultBalances(vaults: Vault[], transactions: Transaction[], today: Date): VaultBalance[] {
+export function vaultBalances(
+  vaults: Vault[],
+  transactions: Transaction[],
+  today: Date,
+  fixedCost?: FixedCost,
+): VaultBalance[] {
   const todayStr = toDateStr(today);
   const monthPrefix = todayStr.slice(0, 7);
   const byVault = new Map<string, Transaction[]>();
@@ -60,13 +70,20 @@ export function vaultBalances(vaults: Vault[], transactions: Transaction[], toda
     }
 
     movimentos.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
-    const goal = vault.goal && vault.goal > 0 ? vault.goal : null;
+    const metaAutomatica = Boolean(vault.goalMonths && fixedCost);
+    const goal = metaAutomatica
+      ? fixedCost!.total * vault.goalMonths! || null
+      : vault.goal && vault.goal > 0
+        ? vault.goal
+        : null;
 
     return {
       vault,
       saldo,
       previsto,
       noMes,
+      meta: goal,
+      metaAutomatica,
       progresso: goal ? saldo / goal : null,
       falta: goal ? Math.max(goal - saldo, 0) : null,
       movimentos,
@@ -82,38 +99,31 @@ export function sortVaults(balances: VaultBalance[]): VaultBalance[] {
   });
 }
 
+/**
+ * Custo de vida fixo de um mês: saídas recorrentes que vencem nele (lançamentos
+ * repetidos, como aluguel, internet e as parcelas do apê) mais os orçamentos
+ * mensais. Cartão e gastos avulsos ficam de fora porque variam.
+ */
+export interface FixedCost {
+  total: number;
+  recorrentes: number;
+  orcamentos: number;
+  /** YYYY-MM do mês considerado. */
+  mes: string;
+}
+
+export function fixedLivingCost(transactions: Transaction[], budgets: Budget[], today: Date): FixedCost {
+  const mes = toDateStr(today).slice(0, 7);
+  let recorrentes = 0;
+  for (const tx of transactions) {
+    if (tx.type === "saida" && tx.groupId && tx.date.startsWith(mes)) recorrentes += tx.amount;
+  }
+  const orcamentos = monthlyBudgetTotal(budgets);
+  return { total: recorrentes + orcamentos, recorrentes, orcamentos, mes };
+}
+
 /** Meses de custo de vida que costumam ser recomendados para a reserva. */
 export const RESERVE_MONTHS = 6;
-
-export interface LivingCost {
-  /** Média mensal de saídas + cartão + gastos diários. */
-  media: number;
-  /** Quantos meses completos entraram na média. */
-  meses: number;
-}
-
-/**
- * Custo de vida médio dos últimos `months` meses completos, pela data do
- * lançamento. Serve só de referência para a meta da reserva.
- */
-export function averageLivingCost(transactions: Transaction[], today: Date, months = 3): LivingCost {
-  const end = new Date(today.getFullYear(), today.getMonth(), 1); // exclusivo: mês corrente fica de fora
-  const start = new Date(end.getFullYear(), end.getMonth() - months, 1);
-  const startStr = toDateStr(start);
-  const endStr = toDateStr(end);
-  const mesesComDado = new Set<string>();
-  let total = 0;
-
-  for (const tx of transactions) {
-    if (tx.date < startStr || tx.date >= endStr) continue;
-    if (tx.type !== "saida" && tx.type !== "cartao" && tx.type !== "gasto_diario") continue;
-    total += tx.amount;
-    mesesComDado.add(tx.date.slice(0, 7));
-  }
-
-  const meses = mesesComDado.size;
-  return { media: meses > 0 ? total / meses : 0, meses };
-}
 
 /**
  * Em quantos meses a meta é atingida guardando `porMes`; null se não há meta,

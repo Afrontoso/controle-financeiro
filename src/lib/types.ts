@@ -33,6 +33,8 @@ export interface Vault {
   name: string;
   /** Meta em reais; null = sem meta. */
   goal: number | null;
+  /** Meta automática: N meses do custo de vida fixo; vale no lugar de `goal`. */
+  goalMonths: number | null;
   /** O que já estava guardado quando o cofre foi criado no app. */
   initial: number;
   kind: VaultKind;

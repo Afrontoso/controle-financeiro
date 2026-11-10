@@ -20,7 +20,7 @@ export async function POST(request: Request) {
         const userId = await currentUserId();
         if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
-        const { name, goal, initial, kind } = parseVaultBody(await request.json());
+        const { name, goal, goalMonths, initial, kind } = parseVaultBody(await request.json());
         if (!name) return NextResponse.json({ error: "Nome obrigatório" }, { status: 400 });
 
         const vault = await prisma.$transaction(async (tx) => {
@@ -29,7 +29,14 @@ export async function POST(request: Request) {
                 await tx.vault.updateMany({ where: { userId, kind: "reserva" }, data: { kind: "cofre" } });
             }
             return tx.vault.create({
-                data: { name, goal: goal ?? null, initial: initial ?? 0, kind: kind ?? "cofre", userId },
+                data: {
+                    name,
+                    goal: goal ?? null,
+                    goalMonths: goalMonths ?? null,
+                    initial: initial ?? 0,
+                    kind: kind ?? "cofre",
+                    userId,
+                },
             });
         });
         return NextResponse.json(vault, { status: 201 });

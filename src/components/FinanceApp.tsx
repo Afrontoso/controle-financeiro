@@ -13,7 +13,7 @@ import { ApartmentView } from "@/components/views/ApartmentView";
 import { ApartmentPlanModal } from "@/components/ApartmentPlanModal";
 import { VaultsView, vaultDeleteDescription } from "@/components/views/VaultsView";
 import { VaultModal } from "@/components/VaultModal";
-import { averageLivingCost, sortVaults, vaultBalances } from "@/lib/vaults";
+import { fixedLivingCost, sortVaults, vaultBalances } from "@/lib/vaults";
 import { DayDrawer, type DayFilter } from "@/components/DayDrawer";
 import { TransactionModal } from "@/components/TransactionModal";
 import { BudgetModal } from "@/components/BudgetModal";
@@ -151,11 +151,14 @@ export function FinanceApp() {
 
   const savings = useMemo(() => summarizeSavings(transactions, today), [transactions, today]);
 
-  const balances = useMemo(
-    () => sortVaults(vaultBalances(vaults, transactions, today)),
-    [vaults, transactions, today],
+  const fixedCost = useMemo(
+    () => fixedLivingCost(transactions, budgets, today),
+    [transactions, budgets, today],
   );
-  const livingCost = useMemo(() => averageLivingCost(transactions, today), [transactions, today]);
+  const balances = useMemo(
+    () => sortVaults(vaultBalances(vaults, transactions, today, fixedCost)),
+    [vaults, transactions, today, fixedCost],
+  );
 
   const cardIndex = useMemo(() => indexCards(cards), [cards]);
 
@@ -492,7 +495,7 @@ export function FinanceApp() {
           onOpenApartment={() => setView("apartamento")}
           onOpenVaults={() => setView("cofres")}
           reserve={balances.find((b) => b.vault.kind === "reserva") ?? null}
-          livingCost={livingCost}
+          fixedCost={fixedCost}
           onSelectDay={(dateStr) => openDay(dateStr)}
           onOpenMonth={(year, month) => {
             setTotalsMonth({ year, month });
@@ -538,7 +541,7 @@ export function FinanceApp() {
       {view === "cofres" && (
         <VaultsView
           balances={balances}
-          livingCost={livingCost}
+          fixedCost={fixedCost}
           onCreate={(asReserve) => setVaultModal({ editing: null, asReserve })}
           onEdit={(vault) => setVaultModal({ editing: vault })}
           onDelete={setDeletingVault}
@@ -742,7 +745,7 @@ export function FinanceApp() {
         <VaultModal
           editing={vaultModal.editing}
           asReserve={vaultModal.asReserve}
-          livingCost={livingCost}
+          fixedCost={fixedCost}
           busy={submitting}
           onClose={() => setVaultModal(null)}
           onSave={(vault) => void handleSaveVault(vault)}

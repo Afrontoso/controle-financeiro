@@ -99,6 +99,7 @@ async function loadVaults(): Promise<Vault[]> {
           id: v.id,
           name: v.name,
           goal: v.goal ?? null,
+          goalMonths: v.goalMonths ?? null,
           initial: Number(v.initial) || 0,
           kind: v.kind === "reserva" ? "reserva" : "cofre",
         }))
@@ -113,6 +114,7 @@ export interface VaultPayload {
   id?: string | null;
   name: string;
   goal: number | null;
+  goalMonths: number | null;
   initial: number;
   kind: Vault["kind"];
 }
@@ -303,7 +305,13 @@ export function useFinanceData() {
 
   const saveVault = useCallback(
     async (vault: VaultPayload) => {
-      const body = { name: vault.name, goal: vault.goal, initial: vault.initial, kind: vault.kind };
+      const body = {
+        name: vault.name,
+        goal: vault.goal,
+        goalMonths: vault.goalMonths,
+        initial: vault.initial,
+        kind: vault.kind,
+      };
       const res = await fetch(vault.id ? `/api/vaults/${vault.id}` : "/api/vaults", {
         method: vault.id ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },

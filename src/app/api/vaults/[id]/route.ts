@@ -11,7 +11,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         const existing = await prisma.vault.findFirst({ where: { id, userId }, select: { id: true } });
         if (!existing) return NextResponse.json({ error: "Cofre não encontrado" }, { status: 404 });
 
-        const { name, goal, initial, kind } = parseVaultBody(await request.json());
+        const { name, goal, goalMonths, initial, kind } = parseVaultBody(await request.json());
         if (name === "") return NextResponse.json({ error: "Nome obrigatório" }, { status: 400 });
 
         const vault = await prisma.$transaction(async (tx) => {
@@ -26,6 +26,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
                 data: {
                     ...(name !== undefined && { name }),
                     ...(goal !== undefined && { goal }),
+                    ...(goalMonths !== undefined && { goalMonths }),
                     ...(initial !== undefined && { initial }),
                     ...(kind !== undefined && { kind }),
                 },

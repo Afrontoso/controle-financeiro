@@ -5,7 +5,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Toggle } from "@/components/TransactionModal";
 import { Brl } from "@/components/ui/Brl";
 import { formatCurrency } from "@/lib/format";
-import { RESERVE_MONTHS, type LivingCost } from "@/lib/vaults";
+import { RESERVE_MONTHS, type FixedCost } from "@/lib/vaults";
 import type { Vault } from "@/lib/types";
 import type { VaultPayload } from "@/hooks/useFinanceData";
 
@@ -13,23 +13,29 @@ interface VaultModalProps {
   editing: Vault | null;
   /** Abrir já como reserva de emergência. */
   asReserve?: boolean;
-  livingCost: LivingCost;
+  fixedCost: FixedCost;
   busy?: boolean;
   onClose: () => void;
   onSave: (vault: VaultPayload) => void;
 }
 
+type GoalMode = "nenhuma" | "valor" | "custo";
+
 const inputClass =
   "w-full rounded-xl border border-border-base bg-surface-2 px-3 py-2.5 text-sm tabular outline-none placeholder:text-fg-subtle focus:border-border-strong";
 
-export function VaultModal({ editing, asReserve, livingCost, busy, onClose, onSave }: VaultModalProps) {
+export function VaultModal({ editing, asReserve, fixedCost, busy, onClose, onSave }: VaultModalProps) {
   const [name, setName] = useState(editing?.name ?? (asReserve ? "reserva de emergência" : ""));
-  const [goal, setGoal] = useState(editing?.goal ?? 0);
-  const [initial, setInitial] = useState(editing?.initial ?? 0);
   const [reserva, setReserva] = useState(editing ? editing.kind === "reserva" : Boolean(asReserve));
+  const [mode, setMode] = useState<GoalMode>(() =>
+    editing?.goalMonths ? "custo" : editing?.goal ? "valor" : asReserve ? "custo" : "nenhuma",
+  );
+  const [goal, setGoal] = useState(editing?.goal ?? 0);
+  const [months, setMonths] = useState(editing?.goalMonths ?? RESERVE_MONTHS);
+  const [initial, setInitial] = useState(editing?.initial ?? 0);
   const [error, setError] = useState<string | null>(null);
 
-  const sugestao = Math.round(livingCost.media * RESERVE_MONTHS);
+  const metaCusto = fixedCost.total * months;
 
   return (
     <Modal onClose={busy ? () => {} : onClose} title={editing ? "editar cofre" : "novo cofre"}>
@@ -37,10 +43,12 @@ export function VaultModal({ editing, asReserve, livingCost, busy, onClose, onSa
         onSubmit={(e) => {
           e.preventDefault();
           if (!name.trim()) return setError("dê um nome ao cofre.");
+          if (mode === "custo" && months < 1) return setError("informe quantos meses.");
           onSave({
             id: editing?.id ?? null,
             name: name.trim(),
-            goal: goal > 0 ? goal : null,
+            goal: mode === "valor" && goal > 0 ? goal : null,
+            goalMonths: mode === "custo" ? months : null,
             initial,
             kind: reserva ? "reserva" : "cofre",
           });
@@ -61,26 +69,60 @@ export function VaultModal({ editing, asReserve, livingCost, busy, onClose, onSa
           />
         </label>
 
-        <label className="flex flex-col gap-1">
-          <span className="text-xs lowercase text-fg-muted">
-            meta <span className="text-fg-subtle">· vazio = sem meta</span>
-          </span>
-          <MoneyInput value={goal} onChange={setGoal} />
-          {reserva && sugestao > 0 && (
-            <button
-              type="button"
-              onClick={() => setGoal(sugestao)}
-              className="mt-1 w-fit text-left text-xs lowercase text-fg-muted underline-offset-2 hover:text-fg hover:underline"
-            >
-              usar {RESERVE_MONTHS}× o custo de vida: <Brl value={sugestao} />
-              <span className="text-fg-subtle">
-                {" "}
-                (média de <Brl value={livingCost.media} /> nos últimos {livingCost.meses}{" "}
-                {livingCost.meses === 1 ? "mês" : "meses"})
-              </span>
-            </button>
+        <div className="flex flex-col gap-2">
+          <span className="text-xs lowercase text-fg-muted">meta</span>
+          <div className="flex gap-1 rounded-xl bg-surface-3 p-1 text-sm lowercase">
+            {(
+              [
+                ["nenhuma", "sem meta"],
+                ["valor", "um valor"],
+                ["custo", "meses de custo fixo"],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setMode(key)}
+                className={`flex-1 rounded-lg px-2 py-1.5 font-medium transition-colors ${
+                  mode === key ? "bg-surface shadow-sm" : "text-fg-muted"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {mode === "valor" && <MoneyInput value={goal} onChange={setGoal} />}
+
+          {mode === "custo" && (
+            <div className="rounded-xl bg-surface-2 p-3">
+              <div className="flex items-center gap-2 text-sm lowercase">
+                <input
+                  inputMode="numeric"
+                  value={months ? String(months) : ""}
+                  onChange={(e) => setMonths(Math.min(Number(e.target.value.replace(/\D/g, "").slice(0, 2) || "0"), 36))}
+                  className="w-14 rounded-lg border border-border-base bg-surface px-2 py-1.5 text-center tabular outline-none focus:border-border-strong"
+                  aria-label="Meses"
+                />
+                <span className="text-fg-muted">meses ×</span>
+                <Brl value={fixedCost.total} className="font-medium" />
+                <span className="text-fg-muted">=</span>
+                <Brl value={metaCusto} className="font-bold" />
+              </div>
+              <p className="mt-2 text-xs lowercase text-fg-subtle">
+                custo fixo deste mês: <Brl value={fixedCost.recorrentes} /> de saídas recorrentes +{" "}
+                <Brl value={fixedCost.orcamentos} /> de orçamentos. a meta se atualiza sozinha quando
+                esses custos mudam.
+              </p>
+              {fixedCost.total === 0 && (
+                <p className="mt-1 text-xs lowercase text-saida">
+                  nenhuma saída recorrente nem orçamento neste mês: a meta fica zerada até você lançar
+                  as contas fixas (com repetição) ou cadastrar orçamentos.
+                </p>
+              )}
+            </div>
           )}
-        </label>
+        </div>
 
         <label className="flex flex-col gap-1">
           <span className="text-xs lowercase text-fg-muted">

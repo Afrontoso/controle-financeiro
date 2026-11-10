@@ -23,5 +23,12 @@ export function parseVaultBody(body: Record<string, unknown>) {
     const initial =
         body.initial === undefined || !Number.isFinite(Number(body.initial)) ? undefined : Number(body.initial);
     const kind = body.kind === "reserva" ? "reserva" : body.kind === "cofre" ? "cofre" : undefined;
-    return { name, goal, initial, kind };
+    const monthsRaw = body.goalMonths;
+    const goalMonths =
+        monthsRaw === undefined
+            ? undefined
+            : monthsRaw === null || !Number.isInteger(Number(monthsRaw)) || Number(monthsRaw) <= 0
+              ? null
+              : Math.min(Number(monthsRaw), 36);
+    return { name, goal, goalMonths, initial, kind };
 }

@@ -4,12 +4,12 @@ import { useState } from "react";
 import { ArrowDownToLine, ArrowUpFromLine, Pencil, PiggyBank, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { Brl, KeepRs } from "@/components/ui/Brl";
 import { formatCurrency, formatPercent } from "@/lib/format";
-import { monthsToGoal, type LivingCost, type VaultBalance } from "@/lib/vaults";
+import { monthsToGoal, type FixedCost, type VaultBalance } from "@/lib/vaults";
 import type { Vault } from "@/lib/types";
 
 interface VaultsViewProps {
   balances: VaultBalance[];
-  livingCost: LivingCost;
+  fixedCost: FixedCost;
   onCreate: (asReserve?: boolean) => void;
   onEdit: (vault: Vault) => void;
   onDelete: (vault: Vault) => void;
@@ -17,7 +17,7 @@ interface VaultsViewProps {
   onMove: (vault: Vault, kind: "guardar" | "resgatar") => void;
 }
 
-export function VaultsView({ balances, livingCost, onCreate, onEdit, onDelete, onMove }: VaultsViewProps) {
+export function VaultsView({ balances, fixedCost, onCreate, onEdit, onDelete, onMove }: VaultsViewProps) {
   const reserva = balances.find((b) => b.vault.kind === "reserva");
   const outros = balances.filter((b) => b !== reserva);
   const total = balances.reduce((s, b) => s + b.saldo, 0);
@@ -49,7 +49,7 @@ export function VaultsView({ balances, livingCost, onCreate, onEdit, onDelete, o
         </section>
 
         {reserva ? (
-          <ReserveCard balance={reserva} livingCost={livingCost} onEdit={onEdit} onMove={onMove} />
+          <ReserveCard balance={reserva} fixedCost={fixedCost} onEdit={onEdit} onMove={onMove} />
         ) : (
           <button
             type="button"
@@ -65,12 +65,12 @@ export function VaultsView({ balances, livingCost, onCreate, onEdit, onDelete, o
             <span>
               <span className="block font-semibold lowercase">criar a reserva de emergência</span>
               <span className="block text-sm lowercase text-fg-muted">
-                {livingCost.media > 0 ? (
+                {fixedCost.total > 0 ? (
                   <>
-                    a referência é 6 meses de custo de vida: uns <Brl value={livingCost.media * 6} /> no seu caso.
+                    a referência é 6 meses do custo de vida fixo: <Brl value={fixedCost.total * 6} /> hoje.
                   </>
                 ) : (
-                  "o dinheiro que segura um imprevisto sem virar dívida. a referência é 6 meses de custo de vida."
+                  "o dinheiro que segura um imprevisto sem virar dívida. a referência é 6 meses do custo de vida fixo."
                 )}
               </span>
             </span>
@@ -100,17 +100,17 @@ export function VaultsView({ balances, livingCost, onCreate, onEdit, onDelete, o
 
 function ReserveCard({
   balance,
-  livingCost,
+  fixedCost,
   onEdit,
   onMove,
 }: {
   balance: VaultBalance;
-  livingCost: LivingCost;
+  fixedCost: FixedCost;
   onEdit: (vault: Vault) => void;
   onMove: (vault: Vault, kind: "guardar" | "resgatar") => void;
 }) {
-  const { vault, saldo, falta, progresso, noMes } = balance;
-  const mesesCobertos = livingCost.media > 0 ? saldo / livingCost.media : null;
+  const { vault, saldo, falta, progresso, noMes, meta, metaAutomatica } = balance;
+  const mesesCobertos = fixedCost.total > 0 ? saldo / fixedCost.total : null;
   const prazo = monthsToGoal(balance, noMes);
 
   return (
@@ -130,12 +130,18 @@ function ReserveCard({
 
       <p className="mt-3 text-3xl font-bold tabular">
         <Brl value={saldo} />
-        {vault.goal && (
+        {meta && (
           <span className="ml-2 text-sm font-normal text-fg-muted">
-            de <Brl value={vault.goal} />
+            de <Brl value={meta} />
           </span>
         )}
       </p>
+      {metaAutomatica && (
+        <p className="mt-0.5 text-xs lowercase text-fg-muted">
+          meta = {vault.goalMonths} meses × <Brl value={fixedCost.total} /> de custo fixo (
+          <Brl value={fixedCost.recorrentes} /> recorrentes + <Brl value={fixedCost.orcamentos} /> de orçamentos)
+        </p>
+      )}
 
       {progresso !== null && (
         <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-surface">
@@ -153,7 +159,7 @@ function ReserveCard({
           <Mini
             label="segura"
             value={`${mesesCobertos.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} ${mesesCobertos >= 1 && mesesCobertos < 2 ? "mês" : "meses"}`}
-            hint="do seu custo de vida"
+            hint="do custo de vida fixo"
           />
         )}
         <Mini
@@ -178,7 +184,7 @@ function VaultCard({
   onMove: (vault: Vault, kind: "guardar" | "resgatar") => void;
 }) {
   const [showMoves, setShowMoves] = useState(false);
-  const { vault, saldo, falta, progresso, previsto, movimentos } = balance;
+  const { vault, saldo, falta, progresso, previsto, movimentos, meta } = balance;
   const atingida = progresso !== null && progresso >= 1;
 
   return (
@@ -200,9 +206,9 @@ function VaultCard({
 
       <p className="mt-3 text-xl font-bold tabular">
         <Brl value={saldo} />
-        {vault.goal && (
+        {meta && (
           <span className="ml-1.5 text-xs font-normal text-fg-muted">
-            de <Brl value={vault.goal} />
+            de <Brl value={meta} />
           </span>
         )}
       </p>

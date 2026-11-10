@@ -21,7 +21,7 @@ import {
   type SavingsTotal,
 } from "@/lib/ledger";
 import type { Card } from "@/lib/types";
-import type { LivingCost, VaultBalance } from "@/lib/vaults";
+import type { FixedCost, VaultBalance } from "@/lib/vaults";
 import { Brl, KeepRs } from "@/components/ui/Brl";
 
 /** Quantos dias à frente uma conta conta como "vence logo". */
@@ -44,7 +44,7 @@ interface OverviewViewProps {
   onOpenVaults: () => void;
   /** Saldo da reserva de emergência, se houver um cofre marcado como tal. */
   reserve: VaultBalance | null;
-  livingCost: LivingCost;
+  fixedCost: FixedCost;
 }
 
 export function OverviewView({
@@ -58,7 +58,7 @@ export function OverviewView({
   onOpenApartment,
   onOpenVaults,
   reserve,
-  livingCost,
+  fixedCost,
 }: OverviewViewProps) {
   const breakdowns = useMemo(() => months.map(breakdownMonth), [months]);
   const current = months[0];
@@ -87,7 +87,7 @@ export function OverviewView({
           summary={summary}
           savings={savings}
           reserve={reserve}
-          livingCost={livingCost}
+          fixedCost={fixedCost}
           onOpenVaults={onOpenVaults}
         />
         {hasPlan && plan && (
@@ -397,24 +397,24 @@ function EconomiasCard({
   summary,
   savings,
   reserve,
-  livingCost,
+  fixedCost,
   onOpenVaults,
 }: {
   summary: MonthBreakdown;
   savings: SavingsTotal;
   reserve: VaultBalance | null;
-  livingCost: LivingCost;
+  fixedCost: FixedCost;
   onOpenVaults: () => void;
 }) {
   const percent = summary.entradas > 0 ? (summary.economias / summary.entradas) * 100 : 0;
-  const meses = reserve && livingCost.media > 0 ? reserve.saldo / livingCost.media : null;
+  const meses = reserve && fixedCost.total > 0 ? reserve.saldo / fixedCost.total : null;
 
   return (
     <Panel
       title={reserve ? "reserva de emergência" : "economias"}
       info={
         reserve
-          ? "saldo do cofre marcado como reserva: o que estava guardado quando você criou o cofre, mais o que guardou nele, menos o que resgatou. “segura” é quantos meses do seu custo de vida médio (últimos 3 meses) ela cobre. embaixo, quanto deste mês vai para economias."
+          ? "saldo do cofre marcado como reserva: o que estava guardado quando você criou o cofre, mais o que guardou nele, menos o que resgatou. “segura” é quantos meses do custo de vida fixo (saídas recorrentes + orçamentos do mês) ela cobre. embaixo, quanto deste mês vai para economias."
           : "tudo o que você lançou como economia até hoje, somando todos os anos. o que já está agendado para datas futuras fica de fora, porque ainda não foi guardado. embaixo, quanto deste mês vai para economias."
       }
       aside={
@@ -427,9 +427,9 @@ function EconomiasCard({
         <>
           <Money value={reserve.saldo} color="var(--economia)" big />
           <p className="mt-0.5 text-xs lowercase text-fg-subtle">
-            {reserve.vault.goal ? (
+            {reserve.meta ? (
               <>
-                {formatPercent((reserve.progresso ?? 0) * 100, 0)} de <Brl value={reserve.vault.goal} />
+                {formatPercent((reserve.progresso ?? 0) * 100, 0)} de <Brl value={reserve.meta} />
               </>
             ) : (
               "sem meta definida"

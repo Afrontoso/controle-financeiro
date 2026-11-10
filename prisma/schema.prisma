@@ -76,6 +76,8 @@ model Vault {
   name      String
   /// Meta em reais; null = cofre sem meta.
   goal      Float?
+  /// Meta automática: N meses do custo de vida fixo. Quando presente, vale no lugar de `goal`.
+  goalMonths Int?
   /// Quanto já havia guardado quando o cofre foi criado no app.
   initial   Float    @default(0)
   /// "reserva" marca a reserva de emergência (no máximo uma por usuário, na prática).

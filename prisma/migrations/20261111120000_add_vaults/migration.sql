@@ -6,6 +6,7 @@ CREATE TABLE "Vault" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "goal" DOUBLE PRECISION,
+    "goalMonths" INTEGER,
     "initial" DOUBLE PRECISION NOT NULL DEFAULT 0,
     "kind" TEXT NOT NULL DEFAULT 'cofre',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
