@@ -80,7 +80,7 @@ export function BanksView(props: BanksViewProps) {
 
   return (
     <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-3 md:p-6">
-      <div className="mx-auto flex max-w-4xl flex-col gap-3 md:gap-4">
+      <div className="flex flex-col gap-3 md:gap-4">
         <StatusCard {...props} today={today} />
         {snapshot && <BalanceCard snapshot={snapshot} appBalance={props.appBalanceToday} onAdjust={props.onAdjustBalance} />}
         <InboxCard

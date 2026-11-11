@@ -33,7 +33,7 @@ export function TotalsView({ summary, annual, savings, onSelectDay }: TotalsView
 
   return (
     <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-3 md:p-6">
-      <div className="mx-auto flex max-w-5xl flex-col gap-6">
+      <div className="flex flex-col gap-6">
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatCard
             label="performance"

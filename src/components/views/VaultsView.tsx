@@ -25,7 +25,7 @@ export function VaultsView({ balances, fixedCost, onCreate, onEdit, onDelete, on
 
   return (
     <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-3 md:p-6">
-      <div className="mx-auto flex max-w-4xl flex-col gap-3 md:gap-4">
+      <div className="flex flex-col gap-3 md:gap-4">
         <section className="flex flex-wrap items-end justify-between gap-3 rounded-2xl border border-border-base bg-surface p-4 md:p-5">
           <div>
             <p className="text-xs lowercase text-fg-muted">guardado em cofres</p>
@@ -78,7 +78,7 @@ export function VaultsView({ balances, fixedCost, onCreate, onEdit, onDelete, on
         )}
 
         {outros.length > 0 && (
-          <section className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <section className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">
             {outros.map((b) => (
               <VaultCard key={b.vault.id} balance={b} onEdit={onEdit} onDelete={onDelete} onMove={onMove} />
             ))}

@@ -72,7 +72,7 @@ export function OverviewView(props: OverviewViewProps) {
 
   return (
     <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-3 md:p-6">
-      <div className="mx-auto grid max-w-6xl grid-cols-1 gap-3 md:gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 md:gap-4 lg:grid-cols-3">
         <SaldoCard summary={summary} className="lg:col-span-2" />
         <AlertsCard {...props} bills={bills} monthStatus={monthStatus} forecasts={forecasts} />
 

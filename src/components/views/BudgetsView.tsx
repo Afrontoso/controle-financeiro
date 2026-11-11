@@ -18,8 +18,8 @@ export function BudgetsView({ budgets, onCreate, onEdit, onDelete }: BudgetsView
 
   return (
     <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-3 md:p-6">
-      <div className="mx-auto flex max-w-3xl flex-col gap-5">
-        <section className="grid grid-cols-2 gap-3">
+      <div className="flex flex-col gap-5">
+        <section className="grid grid-cols-2 gap-3 lg:max-w-xl">
           <div className="rounded-2xl border border-border-base bg-surface p-4">
             <p className="text-xs font-medium lowercase text-fg-muted">total mensal</p>
             <p className="mt-1.5 text-2xl font-bold tabular"><Brl value={total} /></p>
@@ -37,7 +37,7 @@ export function BudgetsView({ budgets, onCreate, onEdit, onDelete }: BudgetsView
           diante. é o que faz o saldo futuro já considerar as contas que ainda vão chegar.
         </p>
 
-        <section className="flex flex-col gap-3">
+        <section className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
           {budgets.map((budget) => (
             <article
               key={budget.id}
@@ -84,7 +84,7 @@ export function BudgetsView({ budgets, onCreate, onEdit, onDelete }: BudgetsView
           ))}
 
           {budgets.length === 0 && (
-            <div className="rounded-2xl border border-dashed border-border-strong px-6 py-12 text-center">
+            <div className="col-span-full rounded-2xl border border-dashed border-border-strong px-6 py-12 text-center">
               <p className="text-sm lowercase text-fg-muted">
                 nenhum orçamento fixo ainda.
                 <br />

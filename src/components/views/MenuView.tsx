@@ -80,7 +80,7 @@ export function MenuView({ onOpenCards, onOpenHorizon, onOpenApartment, onOpenVa
 
   return (
     <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-3 md:p-6">
-      <div className="mx-auto flex max-w-2xl flex-col gap-5">
+      <div className="flex flex-col gap-5">
         <header className="flex items-center gap-4 px-1">
           {session?.user?.image ? (
             /* eslint-disable-next-line @next/next/no-img-element */

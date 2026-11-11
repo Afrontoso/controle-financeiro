@@ -20,13 +20,13 @@ export function CardsView({ cards, usage, onCreate, onEdit, onDelete }: CardsVie
 
   return (
     <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-3 md:p-6">
-      <div className="mx-auto flex max-w-3xl flex-col gap-5">
+      <div className="flex flex-col gap-5">
         <p className="text-sm text-fg-muted">
           gastos lançados como cartão não saem do saldo no dia da compra: eles se juntam e
           caem de uma vez no vencimento — inclusive quando a fatura só vence no mês seguinte.
         </p>
 
-        <section className="flex flex-col gap-3">
+        <section className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
           {cards.map((card) => (
             <article
               key={card.id}
@@ -87,7 +87,7 @@ export function CardsView({ cards, usage, onCreate, onEdit, onDelete }: CardsVie
           ))}
 
           {cards.length === 0 && (
-            <div className="rounded-2xl border border-dashed border-border-strong px-6 py-12 text-center">
+            <div className="col-span-full rounded-2xl border border-dashed border-border-strong px-6 py-12 text-center">
               <p className="text-sm lowercase text-fg-muted">
                 nenhum cartão cadastrado.
                 <br />

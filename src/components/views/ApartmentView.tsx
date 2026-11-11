@@ -833,7 +833,7 @@ function ScheduleChart({
 function Scroll({ children, wide }: { children: React.ReactNode; wide?: boolean }) {
   return (
     <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-3 md:p-6">
-      <div className={`mx-auto flex flex-col gap-3 md:gap-4 ${wide ? "max-w-5xl" : "max-w-xl"}`}>{children}</div>
+      <div className={`flex flex-col gap-3 md:gap-4 ${wide ? "" : "mx-auto max-w-xl"}`}>{children}</div>
     </div>
   );
 }
