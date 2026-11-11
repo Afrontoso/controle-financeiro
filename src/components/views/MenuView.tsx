@@ -10,19 +10,19 @@ import {
   CalendarDays,
   CalendarRange,
   ChevronRight,
-  CreditCard,
   Github,
+  LayoutGrid,
   HandCoins,
   HeartHandshake,
   LogOut,
   Mail,
   MessageSquare,
   Moon,
-  ReceiptText,
   Share2,
+  Sigma,
   Sun,
+  Target,
   Trash2,
-  TrendingUp,
 } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 import { useToast } from "@/components/ui/Toast";
@@ -35,9 +35,8 @@ const PIX_KEY = process.env.NEXT_PUBLIC_PIX_KEY ?? "";
 const PIX_PAYLOAD = process.env.NEXT_PUBLIC_PIX_PAYLOAD ?? "";
 
 interface MenuViewProps {
-  onOpenCards: () => void;
-  onOpenFlow: () => void;
-  onOpenBills: () => void;
+  /** Telas que no celular não têm aba própria. */
+  onOpenView: (view: "saldos" | "totais" | "orcamentos") => void;
   onOpenIncome: () => void;
   onOpenHorizon: () => void;
   onOpenApartment: () => void;
@@ -49,7 +48,7 @@ interface MenuViewProps {
   dataCounts: { transactions: number; budgets: number; cards: number };
 }
 
-export function MenuView({ onOpenCards, onOpenFlow, onOpenBills, onOpenIncome, onOpenHorizon, onOpenApartment, onOpenVaults, onOpenBanks, onGoToday, onResetData, dataCounts }: MenuViewProps) {
+export function MenuView({ onOpenView, onOpenIncome, onOpenHorizon, onOpenApartment, onOpenVaults, onOpenBanks, onGoToday, onResetData, dataCounts }: MenuViewProps) {
   const { theme, toggleTheme } = useTheme();
   const { data: session } = useSession();
   const showToast = useToast();
@@ -103,16 +102,7 @@ export function MenuView({ onOpenCards, onOpenFlow, onOpenBills, onOpenIncome, o
         </header>
 
         <section className="overflow-hidden rounded-2xl border border-border-base bg-surface">
-          {/* No desktop estes atalhos já vivem na barra lateral. */}
-          <MenuRow icon={TrendingUp} label="fluxo de caixa" hint="próximos 45 dias" onClick={onOpenFlow} className="md:hidden" />
-          <MenuRow
-            icon={CreditCard}
-            label="cartões de crédito"
-            hint="fatura no vencimento"
-            onClick={onOpenCards}
-            className="md:hidden"
-          />
-          <MenuRow icon={ReceiptText} label="contas" hint="pagas e a pagar" onClick={onOpenBills} className="md:hidden" />
+          {/* No desktop estes atalhos já vivem na barra lateral; no celular, as abas de baixo têm fluxo, cartões e contas. */}
           <MenuRow icon={HandCoins} label="renda" hint="o que entra" onClick={onOpenIncome} className="md:hidden" />
           <MenuRow
             icon={Building2}
@@ -138,6 +128,9 @@ export function MenuView({ onOpenCards, onOpenFlow, onOpenBills, onOpenIncome, o
             />
           )}
 
+          <MenuRow icon={LayoutGrid} label="saldos" hint="dia a dia" onClick={() => onOpenView("saldos")} className="md:hidden" />
+          <MenuRow icon={Sigma} label="totais" hint="resumo do mês" onClick={() => onOpenView("totais")} className="md:hidden" />
+          <MenuRow icon={Target} label="orçamentos" onClick={() => onOpenView("orcamentos")} className="md:hidden" />
           <MenuRow
             icon={CalendarRange}
             label="horizonte de saldos"

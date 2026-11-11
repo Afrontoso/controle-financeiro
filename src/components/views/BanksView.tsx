@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import { Brl, KeepRs } from "@/components/ui/Brl";
 import { TypeBadge } from "@/components/ui/TypeBadge";
-import { formatCurrency } from "@/lib/format";
 import {
   investedTotal,
   isOutflow,
@@ -210,7 +209,7 @@ function BalanceCard({
             onClick={() => onAdjust(diff)}
             className="shrink-0 rounded-full border border-border-base px-3 py-1.5 text-xs font-medium lowercase hover:bg-surface"
           >
-            lançar ajuste de {formatCurrency(diff)}
+            lançar ajuste de <Brl value={diff} />
           </button>
         </div>
       )}
@@ -341,11 +340,12 @@ function InboxRow({
 
   return (
     <div>
-      <div className="flex items-start gap-3">
+      {/* No celular os botões descem para uma linha própria: o nome precisa do espaço. */}
+      <div className="flex flex-wrap items-start gap-x-3 md:flex-nowrap">
         <TypeBadge type={s.type} size={22} />
         <div className="min-w-0 flex-1">
           <p className="flex items-baseline justify-between gap-2">
-            <span className="truncate text-sm font-medium lowercase">
+            <span className="line-clamp-2 text-sm font-medium lowercase md:truncate">
               <KeepRs text={s.description} />
             </span>
             <span className="shrink-0 text-sm font-semibold tabular" style={{ color: out ? "var(--saida)" : "var(--entrada)" }}>
@@ -365,7 +365,7 @@ function InboxRow({
             <KeepRs text={s.note} />
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-0.5">
+        <div className="mt-1 flex basis-full items-center justify-end gap-1 md:mt-0 md:basis-auto md:gap-0.5">
           <RowButton label={s.action === "link" ? "Reconhecer e marcar como paga" : "Confirmar sugestão"} onClick={onConfirm} disabled={needsCard} accent>
             <Check size={16} />
           </RowButton>
@@ -661,7 +661,7 @@ function RowButton({
       disabled={disabled}
       aria-label={label}
       title={label}
-      className={`grid size-8 place-items-center rounded-full transition-colors disabled:opacity-30 ${
+      className={`grid size-10 place-items-center rounded-full md:size-8 transition-colors disabled:opacity-30 ${
         accent ? "text-[var(--entrada)] hover:bg-entrada-soft" : "text-fg-subtle hover:bg-surface-3 hover:text-fg"
       }`}
     >

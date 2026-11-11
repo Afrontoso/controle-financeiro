@@ -236,26 +236,23 @@ export function BillsView({
           >
             <ul className="mt-4 flex flex-col divide-y divide-border-base">
               {candidates.map((c) => (
-                <li key={c.key} className="flex items-center gap-3 py-2.5">
-                  <Repeat
-                    size={16}
-                    className="shrink-0 text-[var(--ov-blue)]"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium lowercase">
-                      {c.label}
-                    </p>
-                    <p className="text-[11px] lowercase text-fg-subtle">
-                      {c.months} meses seguidos · por volta do dia {c.day}
-                    </p>
-                  </div>
-                  <span className="shrink-0 text-sm font-semibold tabular">
-                    ~<Brl value={c.amount} />
-                  </span>
+              <li key={c.key} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2.5">
+                <Repeat size={16} className="shrink-0 text-[var(--ov-blue)]" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium lowercase">{c.label}</p>
+                  <p className="text-[11px] lowercase text-fg-subtle">
+                    {c.months} meses seguidos · por volta do dia {c.day}
+                  </p>
+                </div>
+                <span className="shrink-0 text-sm font-semibold tabular">
+                  ~<Brl value={c.amount} />
+                </span>
+                {/* No celular os botões ganham uma linha só deles. */}
+                <div className="flex basis-full items-center justify-end gap-1 sm:basis-auto">
                   <button
                     type="button"
                     onClick={() => onAddRecurring(c)}
-                    className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold lowercase text-white"
+                    className="rounded-lg px-3 py-2 text-xs font-semibold lowercase text-white sm:py-1.5"
                     style={{ background: "var(--ov-blue)" }}
                   >
                     adicionar
@@ -264,12 +261,13 @@ export function BillsView({
                     type="button"
                     onClick={() => dismiss(c.key)}
                     aria-label={`Dispensar ${c.label}`}
-                    className="grid size-7 shrink-0 place-items-center rounded-full text-fg-subtle hover:bg-surface-3 hover:text-fg"
+                    className="grid size-9 place-items-center rounded-full text-fg-subtle hover:bg-surface-3 hover:text-fg sm:size-7"
                   >
                     <X size={14} />
                   </button>
-                </li>
-              ))}
+                </div>
+              </li>
+            ))}
             </ul>
             {candidates.length === 0 && (
               <p className="mt-4 text-sm lowercase text-fg-subtle">

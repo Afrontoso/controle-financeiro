@@ -39,25 +39,26 @@ interface NavItem {
   key: ViewKey;
   label: string;
   icon: typeof Wallet;
-  /** Fora da barra do celular, que só comporta quatro abas além do menu. */
-  desktopOnly?: boolean;
+  /** Aba fixa na barra de baixo do celular (cabem quatro além do menu); o resto abre pelo menu. */
+  tab?: boolean;
+  /** Rótulo curto da aba no celular. */
+  short?: string;
 }
 
-// A ordem é a da barra lateral; no celular só cabem as que não são desktopOnly.
+// A ordem é a da barra lateral.
 const NAV_ITEMS: NavItem[] = [
-  { key: "visao", label: "visão geral", icon: Gauge },
-  { key: "fluxo", label: "fluxo de caixa", icon: TrendingUp, desktopOnly: true },
-  { key: "cartoes", label: "cartões", icon: CreditCard, desktopOnly: true },
-  { key: "contas", label: "contas", icon: ReceiptText, desktopOnly: true },
-  { key: "apartamento", label: "apartamento", icon: Building2, desktopOnly: true },
-  { key: "cofres", label: "cofres", icon: PiggyBank, desktopOnly: true },
-  { key: "renda", label: "renda", icon: HandCoins, desktopOnly: true },
+  { key: "visao", label: "visão geral", icon: Gauge, tab: true, short: "visão" },
+  { key: "fluxo", label: "fluxo de caixa", icon: TrendingUp, tab: true, short: "fluxo" },
+  { key: "cartoes", label: "cartões", icon: CreditCard, tab: true },
+  { key: "contas", label: "contas", icon: ReceiptText, tab: true },
+  { key: "apartamento", label: "apartamento", icon: Building2 },
+  { key: "cofres", label: "cofres", icon: PiggyBank },
+  { key: "renda", label: "renda", icon: HandCoins },
   { key: "saldos", label: "saldos", icon: LayoutGrid },
   { key: "totais", label: "totais", icon: Sigma },
-  // No celular o horizonte abre pelo menu.
-  { key: "horizonte", label: "horizonte", icon: CalendarDays, desktopOnly: true },
+  { key: "horizonte", label: "horizonte", icon: CalendarDays },
   { key: "orcamentos", label: "orçamentos", icon: Target },
-  { key: "bancos", label: "bancos", icon: Landmark, desktopOnly: true },
+  { key: "bancos", label: "bancos", icon: Landmark },
 ];
 
 interface AppShellProps {
@@ -234,11 +235,11 @@ interface TabBarProps {
 }
 
 function MobileTabBar({ view, onViewChange, onAdd }: TabBarProps) {
-  const mobileItems = NAV_ITEMS.filter((item) => !item.desktopOnly);
+  const mobileItems = NAV_ITEMS.filter((item) => item.tab);
   const left = mobileItems.slice(0, 2);
   const right = mobileItems.slice(2);
-  // As telas só de desktop abrem pelo menu no celular: a aba do menu fica acesa.
-  const menuActive = view === "menu" || NAV_ITEMS.some((item) => item.desktopOnly && item.key === view);
+  // Telas sem aba própria abrem pelo menu no celular: a aba do menu fica acesa.
+  const menuActive = view === "menu" || NAV_ITEMS.some((item) => !item.tab && item.key === view);
 
   return (
     <nav
@@ -310,7 +311,7 @@ function TabButton({
       }`}
     >
       <Icon size={20} strokeWidth={active ? 2.4 : 2} />
-      <span className="truncate px-1">{item.key === "visao" ? "visão" : item.label}</span>
+      <span className="truncate px-1">{item.short ?? item.label}</span>
     </button>
   );
 }

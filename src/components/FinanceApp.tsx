@@ -792,9 +792,7 @@ export function FinanceApp() {
 
       {view === "menu" && (
         <MenuView
-          onOpenCards={() => setView("cartoes")}
-          onOpenFlow={() => setView("fluxo")}
-          onOpenBills={() => setView("contas")}
+          onOpenView={setView}
           onOpenIncome={() => setView("renda")}
           onOpenHorizon={() => setView("horizonte")}
           onOpenApartment={() => setView("apartamento")}

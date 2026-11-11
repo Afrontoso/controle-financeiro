@@ -558,13 +558,14 @@ function AmortizationPanel({
       )}
 
       <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[26rem] text-sm">
+        <table className="w-full text-sm sm:min-w-[26rem]">
           <thead>
             <tr className="text-left text-xs lowercase text-fg-subtle">
               <th className="py-1.5 font-normal">extra por mês</th>
               <th className="py-1.5 font-normal">quita em</th>
               {modo === "parcela" && <th className="py-1.5 text-right font-normal">parcela em 5 anos</th>}
-              <th className="py-1.5 text-right font-normal">juros</th>
+              {/* No celular fica só a economia, que é o que decide. */}
+              <th className="hidden py-1.5 text-right font-normal sm:table-cell">juros</th>
               <th className="py-1.5 text-right font-normal">economia</th>
             </tr>
           </thead>
@@ -581,7 +582,7 @@ function AmortizationPanel({
                   <td className="py-2">{r.extra === 0 ? "nada" : <Brl value={r.extra} />}</td>
                   <td className="py-2">
                     {monthKeyLabel(r.summary.fim)}
-                    <span className="ml-1 text-xs font-normal text-fg-subtle">
+                    <span className="block text-xs font-normal text-fg-subtle sm:ml-1 sm:inline">
                       ({(r.summary.meses / 12).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} anos)
                     </span>
                   </td>
@@ -590,7 +591,7 @@ function AmortizationPanel({
                       {r.parcelaEm[60] === null ? "quitado" : <Brl value={r.parcelaEm[60]} />}
                     </td>
                   )}
-                  <td className="py-2 text-right">
+                  <td className="hidden py-2 text-right sm:table-cell">
                     <Brl value={r.summary.juros} />
                   </td>
                   <td className="py-2 text-right" style={{ color: base && r.jurosEconomizados > 0 ? "var(--entrada)" : undefined }}>
