@@ -476,10 +476,24 @@ export function billsOfMonth(month: MonthEntry, cards: Card[]): BillDay[] {
   return result;
 }
 
+/** Fatura de um cartão num mês, pelo dia em que vence. */
+export interface CardBill {
+  key: string;
+  label: string;
+  year: number;
+  month: number;
+  amount: number;
+  /** YYYY-MM-DD do vencimento neste mês. */
+  dueDate: string;
+  /** Tem compras e todas estão marcadas como pagas. */
+  paid: boolean;
+  count: number;
+}
+
 /** Fatura de cada cartão em cada mês da janela, pelo mês do vencimento. */
 export interface CardForecast {
   card: Card;
-  months: { key: string; label: string; amount: number }[];
+  months: CardBill[];
 }
 
 export function cardForecasts(months: MonthEntry[], cards: Card[]): CardForecast[] {
@@ -487,12 +501,27 @@ export function cardForecasts(months: MonthEntry[], cards: Card[]): CardForecast
     card,
     months: months.map((month) => {
       let amount = 0;
+      let count = 0;
+      let paid = true;
       for (const day of month.days) {
         for (const tx of day.transactions) {
-          if (tx.type === "cartao" && tx.cardId === card.id) amount += tx.amount;
+          if (tx.type === "cartao" && tx.cardId === card.id) {
+            amount += tx.amount;
+            count += 1;
+            paid = paid && Boolean(tx.paid);
+          }
         }
       }
-      return { key: month.key, label: month.label, amount };
+      return {
+        key: month.key,
+        label: month.label,
+        year: month.year,
+        month: month.month,
+        amount,
+        dueDate: toDateStr(new Date(month.year, month.month, clampDueDay(month.year, month.month, card.dueDay))),
+        paid: count > 0 && paid,
+        count,
+      };
     }),
   }));
 }

@@ -60,6 +60,14 @@
   --heat-neg-2: #e06a6a;
   --heat-neg-2-fg: #ffffff;
 
+  /* visão geral: tons da barra do saldo previsto e o cartão desenhado */
+  --ov-navy: #1e3a8a;
+  --ov-blue: #2563eb;
+  --ov-sky: #9db8f5;
+  --ov-blue-soft: #e8effe;
+  --ov-card-from: #2b2e35;
+  --ov-card-to: #16181d;
+
   /* elevação */
   --shadow-sm: 0 1px 2px rgb(24 24 27 / 0.06);
   --shadow-md: 0 4px 14px -4px rgb(24 24 27 / 0.12);
@@ -71,6 +79,13 @@
    --------------------------------------------------------------- */
 .dark {
   color-scheme: dark;
+
+  --ov-navy: #7ea2f5;
+  --ov-blue: #4f83f7;
+  --ov-sky: #2f4a85;
+  --ov-blue-soft: #1a2643;
+  --ov-card-from: #2a2d36;
+  --ov-card-to: #0f1115;
 
   --bg: #0b0b0d;
   --surface: #141417;

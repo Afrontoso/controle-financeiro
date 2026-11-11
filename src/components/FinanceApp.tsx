@@ -167,6 +167,15 @@ export function FinanceApp() {
 
   const cardIndex = useMemo(() => indexCards(cards), [cards]);
 
+  /** Hoje e os 30 dias seguintes: o gráfico e os avisos de saldo negativo da visão geral. */
+  const next30 = useMemo(() => {
+    const months = buildLedger({ transactions, budgets, cards, today, from: todayMonth, to: shiftMonth(todayMonth, 1) });
+    const todayStr = toDateStr(today);
+    const end = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 30);
+    const endStr = toDateStr(end);
+    return months.flatMap((m) => m.days).filter((d) => d.dateStr >= todayStr && d.dateStr <= endStr);
+  }, [transactions, budgets, cards, today, todayMonth]);
+
   /** Saldo que o app projeta para hoje: comparado com o do banco na tela de bancos. */
   const appBalanceToday = useMemo(() => {
     const [month] = buildLedger({ transactions, budgets, cards, today, from: todayMonth, to: todayMonth });
@@ -589,8 +598,9 @@ export function FinanceApp() {
       {view === "visao" && (
         <OverviewView
           months={overviewMonths}
+          next30={next30}
           cards={cards}
-          transactions={transactions}
+          usage={cardUsage}
           onTogglePaid={(ids, paid) => {
             finance.setPaid(ids, paid).catch((error) => {
               console.error(error);
