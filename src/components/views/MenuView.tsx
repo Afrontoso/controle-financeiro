@@ -12,14 +12,17 @@ import {
   ChevronRight,
   CreditCard,
   Github,
+  HandCoins,
   HeartHandshake,
   LogOut,
   Mail,
   MessageSquare,
   Moon,
+  ReceiptText,
   Share2,
   Sun,
   Trash2,
+  TrendingUp,
 } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 import { useToast } from "@/components/ui/Toast";
@@ -33,6 +36,9 @@ const PIX_PAYLOAD = process.env.NEXT_PUBLIC_PIX_PAYLOAD ?? "";
 
 interface MenuViewProps {
   onOpenCards: () => void;
+  onOpenFlow: () => void;
+  onOpenBills: () => void;
+  onOpenIncome: () => void;
   onOpenHorizon: () => void;
   onOpenApartment: () => void;
   onOpenVaults: () => void;
@@ -43,7 +49,7 @@ interface MenuViewProps {
   dataCounts: { transactions: number; budgets: number; cards: number };
 }
 
-export function MenuView({ onOpenCards, onOpenHorizon, onOpenApartment, onOpenVaults, onOpenBanks, onGoToday, onResetData, dataCounts }: MenuViewProps) {
+export function MenuView({ onOpenCards, onOpenFlow, onOpenBills, onOpenIncome, onOpenHorizon, onOpenApartment, onOpenVaults, onOpenBanks, onGoToday, onResetData, dataCounts }: MenuViewProps) {
   const { theme, toggleTheme } = useTheme();
   const { data: session } = useSession();
   const showToast = useToast();
@@ -97,14 +103,17 @@ export function MenuView({ onOpenCards, onOpenHorizon, onOpenApartment, onOpenVa
         </header>
 
         <section className="overflow-hidden rounded-2xl border border-border-base bg-surface">
+          {/* No desktop estes atalhos já vivem na barra lateral. */}
+          <MenuRow icon={TrendingUp} label="fluxo de caixa" hint="próximos 45 dias" onClick={onOpenFlow} className="md:hidden" />
           <MenuRow
             icon={CreditCard}
             label="cartões de crédito"
             hint="fatura no vencimento"
             onClick={onOpenCards}
+            className="md:hidden"
           />
-
-          {/* No desktop estes atalhos já vivem na barra lateral. */}
+          <MenuRow icon={ReceiptText} label="contas" hint="pagas e a pagar" onClick={onOpenBills} className="md:hidden" />
+          <MenuRow icon={HandCoins} label="renda" hint="o que entra" onClick={onOpenIncome} className="md:hidden" />
           <MenuRow
             icon={Building2}
             label="apartamento"

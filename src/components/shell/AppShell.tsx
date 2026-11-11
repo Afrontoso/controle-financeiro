@@ -3,6 +3,10 @@
 import { useState } from "react";
 import {
   Building2,
+  CreditCard,
+  HandCoins,
+  ReceiptText,
+  TrendingUp,
   Landmark,
   PiggyBank,
   CalendarDays,
@@ -16,9 +20,11 @@ import {
   Wallet,
 } from "lucide-react";
 
-/** "cartoes" não fica na navegação: abre a partir do menu. */
 export type ViewKey =
   | "visao"
+  | "fluxo"
+  | "contas"
+  | "renda"
   | "saldos"
   | "totais"
   | "horizonte"
@@ -37,15 +43,20 @@ interface NavItem {
   desktopOnly?: boolean;
 }
 
+// A ordem é a da barra lateral; no celular só cabem as que não são desktopOnly.
 const NAV_ITEMS: NavItem[] = [
   { key: "visao", label: "visão geral", icon: Gauge },
+  { key: "fluxo", label: "fluxo de caixa", icon: TrendingUp, desktopOnly: true },
+  { key: "cartoes", label: "cartões", icon: CreditCard, desktopOnly: true },
+  { key: "contas", label: "contas", icon: ReceiptText, desktopOnly: true },
+  { key: "apartamento", label: "apartamento", icon: Building2, desktopOnly: true },
+  { key: "cofres", label: "cofres", icon: PiggyBank, desktopOnly: true },
+  { key: "renda", label: "renda", icon: HandCoins, desktopOnly: true },
   { key: "saldos", label: "saldos", icon: LayoutGrid },
   { key: "totais", label: "totais", icon: Sigma },
   // No celular o horizonte abre pelo menu.
   { key: "horizonte", label: "horizonte", icon: CalendarDays, desktopOnly: true },
   { key: "orcamentos", label: "orçamentos", icon: Target },
-  { key: "apartamento", label: "apartamento", icon: Building2, desktopOnly: true },
-  { key: "cofres", label: "cofres", icon: PiggyBank, desktopOnly: true },
   { key: "bancos", label: "bancos", icon: Landmark, desktopOnly: true },
 ];
 
@@ -154,7 +165,7 @@ function DesktopSidebar({
           icon={Menu}
           label="menu"
           collapsed={collapsed}
-          active={view === "menu" || view === "cartoes"}
+          active={view === "menu"}
           onClick={() => onViewChange("menu")}
         />
         <button
@@ -226,14 +237,8 @@ function MobileTabBar({ view, onViewChange, onAdd }: TabBarProps) {
   const mobileItems = NAV_ITEMS.filter((item) => !item.desktopOnly);
   const left = mobileItems.slice(0, 2);
   const right = mobileItems.slice(2);
-  // Cartões e horizonte nascem do menu no celular: a aba do menu fica acesa.
-  const menuActive =
-    view === "menu" ||
-    view === "cartoes" ||
-    view === "horizonte" ||
-    view === "apartamento" ||
-    view === "cofres" ||
-    view === "bancos";
+  // As telas só de desktop abrem pelo menu no celular: a aba do menu fica acesa.
+  const menuActive = view === "menu" || NAV_ITEMS.some((item) => item.desktopOnly && item.key === view);
 
   return (
     <nav

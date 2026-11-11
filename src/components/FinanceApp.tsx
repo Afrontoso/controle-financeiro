@@ -7,6 +7,9 @@ import { HorizonView } from "@/components/views/HorizonView";
 import { TotalsView } from "@/components/views/TotalsView";
 import { BudgetsView } from "@/components/views/BudgetsView";
 import { CardsView } from "@/components/views/CardsView";
+import { CashFlowView } from "@/components/views/CashFlowView";
+import { BillsView } from "@/components/views/BillsView";
+import { IncomeView } from "@/components/views/IncomeView";
 import { MenuView } from "@/components/views/MenuView";
 import { OverviewView } from "@/components/views/OverviewView";
 import { ApartmentView } from "@/components/views/ApartmentView";
@@ -31,6 +34,7 @@ import {
   buildLedger,
   cardLimitUsage,
   chargeDateOf,
+  dailyDrain,
   indexCards,
   shiftMonth,
   summarizeMonth,
@@ -58,6 +62,9 @@ const VIEW_TITLES: Record<ViewKey, string> = {
   cofres: "cofres",
   bancos: "bancos",
   cartoes: "cartões de crédito",
+  fluxo: "fluxo de caixa",
+  contas: "contas",
+  renda: "renda",
   menu: "menu",
 };
 
@@ -71,7 +78,11 @@ export function FinanceApp() {
   const [vaultModal, setVaultModal] = useState<{ editing: Vault | null; asReserve?: boolean } | null>(null);
   const [deletingVault, setDeletingVault] = useState<Vault | null>(null);
   /** Guardar/resgatar a partir de um cofre: tipo e cofre já escolhidos no modal. */
-  const [txPreset, setTxPreset] = useState<{ type: TxType; vaultId: string } | null>(null);
+  const [txPreset, setTxPreset] = useState<{
+    type: TxType;
+    vaultId?: string;
+    draft?: { description: string; amount: number; monthly?: boolean };
+  } | null>(null);
   const [deletingPlan, setDeletingPlan] = useState(false);
   const [planBusy, setPlanBusy] = useState(false);
 
@@ -85,6 +96,7 @@ export function FinanceApp() {
   const [windowStart, setWindowStart] = useState<YearMonth>(todayMonth);
   const [totalsMonth, setTotalsMonth] = useState<YearMonth>(todayMonth);
   const [overviewMonth, setOverviewMonth] = useState<YearMonth>(todayMonth);
+  const [billsMonth, setBillsMonth] = useState<YearMonth>(todayMonth);
   const [mobileType, setMobileType] = useState<TxType>("saida");
   const [scrollToTodayToken, setScrollToTodayToken] = useState(0);
 
@@ -176,6 +188,19 @@ export function FinanceApp() {
     return months.flatMap((m) => m.days).filter((d) => d.dateStr >= todayStr && d.dateStr <= endStr);
   }, [transactions, budgets, cards, today, todayMonth]);
 
+  /** Hoje e os 45 dias seguintes: a tela de fluxo de caixa. */
+  const next45 = useMemo(() => {
+    const months = buildLedger({ transactions, budgets, cards, today, from: todayMonth, to: shiftMonth(todayMonth, 2) });
+    const todayStr = toDateStr(today);
+    const endStr = toDateStr(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 45));
+    return months.flatMap((m) => m.days).filter((d) => d.dateStr >= todayStr && d.dateStr <= endStr);
+  }, [transactions, budgets, cards, today, todayMonth]);
+
+  const billsMonthEntry = useMemo(
+    () => buildLedger({ transactions, budgets, cards, today, from: billsMonth, to: billsMonth })[0] ?? null,
+    [transactions, budgets, cards, today, billsMonth],
+  );
+
   /** Saldo que o app projeta para hoje: comparado com o do banco na tela de bancos. */
   const appBalanceToday = useMemo(() => {
     const [month] = buildLedger({ transactions, budgets, cards, today, from: todayMonth, to: todayMonth });
@@ -205,6 +230,7 @@ export function FinanceApp() {
     setWindowStart(todayMonth);
     setTotalsMonth(todayMonth);
     setOverviewMonth(todayMonth);
+    setBillsMonth(todayMonth);
     setScrollToTodayToken((token) => token + 1);
   }, [todayMonth]);
 
@@ -583,8 +609,6 @@ export function FinanceApp() {
     >
       <ViewHeader
         title={VIEW_TITLES[view]}
-        // Cartões é uma tela filha do menu: precisa de caminho de volta.
-        onBack={view === "cartoes" ? () => setView("menu") : undefined}
       >
         {view === "saldos" || view === "horizonte" ? (
           <PeriodPicker start={windowStart} span={WINDOW_SPAN} onChange={setWindowStart} />
@@ -592,6 +616,8 @@ export function FinanceApp() {
           <PeriodPicker start={totalsMonth} span={1} onChange={setTotalsMonth} />
         ) : view === "visao" ? (
           <PeriodPicker start={overviewMonth} span={1} onChange={setOverviewMonth} />
+        ) : view === "contas" ? (
+          <PeriodPicker start={billsMonth} span={1} onChange={setBillsMonth} />
         ) : null}
       </ViewHeader>
 
@@ -622,6 +648,45 @@ export function FinanceApp() {
             setView("totais");
           }}
         />
+      )}
+
+      {view === "fluxo" && (
+        <CashFlowView
+          days={next45}
+          transactions={transactions}
+          cards={cards}
+          dailyQuota={dailyDrain(budgets)}
+          today={today}
+          onSelectDay={(dateStr) => openDay(dateStr)}
+        />
+      )}
+
+      {view === "contas" && (
+        <BillsView
+          month={billsMonthEntry}
+          cards={cards}
+          transactions={transactions}
+          today={today}
+          onTogglePaid={(ids, paid) => {
+            finance.setPaid(ids, paid).catch((error) => {
+              console.error(error);
+              showToast("não foi possível marcar como paga.", "error");
+            });
+          }}
+          onSelectDay={(dateStr) => openDay(dateStr)}
+          onAddRecurring={(c) => {
+            // Próxima ocorrência: o dia de costume ainda neste mês, ou no próximo.
+            const day = Math.min(c.day, 28);
+            const thisMonth = new Date(today.getFullYear(), today.getMonth(), day);
+            const date = thisMonth >= today ? thisMonth : new Date(today.getFullYear(), today.getMonth() + 1, day);
+            setTxPreset({ type: "saida", draft: { description: c.label, amount: c.amount, monthly: true } });
+            openCreateModal(toDateStr(date));
+          }}
+        />
+      )}
+
+      {view === "renda" && (
+        <IncomeView transactions={transactions} today={today} rendaBanco={apartment.plan?.rendaBanco ?? null} />
       )}
 
       {view === "saldos" && (
@@ -666,6 +731,8 @@ export function FinanceApp() {
           onEdit={(vault) => setVaultModal({ editing: vault })}
           onDelete={setDeletingVault}
           onMove={openVaultMove}
+          snapshot={openFinance.enabled ? openFinance.snapshot : null}
+          syncedAt={openFinance.syncedAt}
         />
       )}
 
@@ -708,6 +775,9 @@ export function FinanceApp() {
         <CardsView
           cards={cards}
           usage={cardUsage}
+          transactions={transactions}
+          today={today}
+          onSelectDay={(dateStr) => openDay(dateStr)}
           onCreate={() => {
             setEditingCard(null);
             setCardModalOpen(true);
@@ -723,6 +793,9 @@ export function FinanceApp() {
       {view === "menu" && (
         <MenuView
           onOpenCards={() => setView("cartoes")}
+          onOpenFlow={() => setView("fluxo")}
+          onOpenBills={() => setView("contas")}
+          onOpenIncome={() => setView("renda")}
           onOpenHorizon={() => setView("horizonte")}
           onOpenApartment={() => setView("apartamento")}
           onOpenVaults={() => setView("cofres")}
@@ -765,6 +838,7 @@ export function FinanceApp() {
           // Estando o painel filtrado numa coluna, o novo lançamento já nasce nela.
           defaultType={txPreset?.type ?? (dayFilter === "todos" ? mobileType : dayFilter)}
           defaultVaultId={txPreset?.vaultId ?? null}
+          draft={txPreset?.draft ?? null}
           cards={cards}
           vaults={vaults}
           submitting={submitting}

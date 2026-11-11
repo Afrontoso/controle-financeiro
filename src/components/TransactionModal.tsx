@@ -49,6 +49,8 @@ interface TransactionModalProps {
   vaults?: Vault[];
   /** Cofre pré-selecionado ao criar (ex.: botão "guardar" de um cofre). */
   defaultVaultId?: string | null;
+  /** Rascunho para criar: nome e valor já preenchidos, opcionalmente todo mês sem fim. */
+  draft?: { description: string; amount: number; monthly?: boolean } | null;
   submitting: boolean;
   onSubmit: (payload: TransactionPayload) => void;
 }
@@ -61,24 +63,25 @@ export function TransactionModal({
   cards,
   vaults = [],
   defaultVaultId = null,
+  draft = null,
   submitting,
   onSubmit,
 }: TransactionModalProps) {
   // Os centavos são guardados como dígitos crus: digitar 2800 vira R$ 28,00.
   const [amountDigits, setAmountDigits] = useState(() =>
-    editing ? String(Math.round(editing.amount * 100)) : "",
+    editing ? String(Math.round(editing.amount * 100)) : draft ? String(Math.round(draft.amount * 100)) : "",
   );
   const [type, setType] = useState<TxType>(editing?.type ?? defaultType);
-  const [description, setDescription] = useState(editing?.description ?? "");
+  const [description, setDescription] = useState(editing?.description ?? draft?.description ?? "");
   const [dateValue, setDateValue] = useState(editing?.date ?? date);
   const [cardId, setCardId] = useState<string | null>(
     () => editing?.cardId ?? cards[0]?.id ?? null,
   );
   const [vaultId, setVaultId] = useState<string | null>(() => editing?.vaultId ?? defaultVaultId);
-  const [repeats, setRepeats] = useState(false);
+  const [repeats, setRepeats] = useState(Boolean(draft?.monthly));
   const [frequency, setFrequency] = useState<Frequency>("mensal");
   const [count, setCount] = useState("2");
-  const [indeterminate, setIndeterminate] = useState(false);
+  const [indeterminate, setIndeterminate] = useState(Boolean(draft?.monthly));
   const [error, setError] = useState<string | null>(null);
 
   const amount = Number(amountDigits || "0") / 100;

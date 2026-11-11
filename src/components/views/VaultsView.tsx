@@ -6,6 +6,7 @@ import { Brl, KeepRs } from "@/components/ui/Brl";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import { monthsToGoal, type FixedCost, type VaultBalance } from "@/lib/vaults";
 import type { Vault } from "@/lib/types";
+import { investedTotal, normalizeName, type BankSnapshotData } from "@/lib/openFinance";
 
 interface VaultsViewProps {
   balances: VaultBalance[];
@@ -15,9 +16,12 @@ interface VaultsViewProps {
   onDelete: (vault: Vault) => void;
   /** Abre o modal de lançamento já ligado ao cofre: guardar = economia, resgatar = entrada. */
   onMove: (vault: Vault, kind: "guardar" | "resgatar") => void;
+  /** Retrato do banco pelo Open Finance (só para quem tem). */
+  snapshot?: BankSnapshotData | null;
+  syncedAt?: string | null;
 }
 
-export function VaultsView({ balances, fixedCost, onCreate, onEdit, onDelete, onMove }: VaultsViewProps) {
+export function VaultsView({ balances, fixedCost, onCreate, onEdit, onDelete, onMove, snapshot, syncedAt }: VaultsViewProps) {
   const reserva = balances.find((b) => b.vault.kind === "reserva");
   const outros = balances.filter((b) => b !== reserva);
   const total = balances.reduce((s, b) => s + b.saldo, 0);
@@ -84,6 +88,8 @@ export function VaultsView({ balances, fixedCost, onCreate, onEdit, onDelete, on
             ))}
           </section>
         )}
+
+        {snapshot && <MoneyToday snapshot={snapshot} syncedAt={syncedAt ?? null} vaults={balances.map((b) => b.vault.name)} />}
 
         {balances.length === 0 && (
           <p className="px-1 text-sm lowercase text-fg-subtle">
@@ -349,4 +355,111 @@ function Mini({ label, value, hint }: { label: string; value: React.ReactNode; h
 export function vaultDeleteDescription(balance: VaultBalance | undefined): string {
   if (!balance) return "";
   return `os ${balance.movimentos.length} lançamentos ligados a ele continuam no saldo, só deixam de contar como desse cofre. saldo atual: ${formatCurrency(balance.saldo)}.`;
+}
+
+/* ------------------------------------------------------------------ */
+
+const INVESTMENT_LABELS: Record<string, string> = {
+  CDB: "CDB",
+  STOCK: "ações",
+  REAL_ESTATE_FUND: "fundos imobiliários",
+  TREASURY: "tesouro direto",
+};
+
+/** Tudo o que o banco mostra hoje: contas, cofrinhos, investimentos e cartões. */
+function MoneyToday({
+  snapshot,
+  syncedAt,
+  vaults,
+}: {
+  snapshot: BankSnapshotData;
+  syncedAt: string | null;
+  vaults: string[];
+}) {
+  const vaultNames = new Set(vaults.map(normalizeName));
+  const contas = snapshot.accounts.filter((a) => a.type === "BANK");
+  const cofrinhos = contas.flatMap((a) => (a.reserved ?? []).filter((r) => r.amount > 0).map((r) => ({ ...r, conta: a.name })));
+  const cartoes = snapshot.accounts.filter((a) => a.type === "CREDIT" && a.balance > 0);
+  const investimentos = new Map<string, number>();
+  for (const inv of snapshot.investments) {
+    const label = INVESTMENT_LABELS[inv.subtype ?? ""] ?? inv.name.toLowerCase();
+    investimentos.set(label, (investimentos.get(label) ?? 0) + inv.balance);
+  }
+  const totalContas = contas.reduce((s, a) => s + a.balance, 0);
+  const totalCofrinhos = cofrinhos.reduce((s, r) => s + r.amount, 0);
+  const totalInvest = investedTotal(snapshot);
+  const totalCartoes = cartoes.reduce((s, a) => s + a.balance, 0);
+  const lido = syncedAt ? new Date(syncedAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : null;
+
+  return (
+    <section className="rounded-2xl border border-border-base bg-surface p-4 md:p-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-semibold lowercase">seu dinheiro hoje</h2>
+          <p className="text-xs lowercase text-fg-muted">
+            <Brl value={totalContas + totalCofrinhos + totalInvest} /> entre contas, cofrinhos e investimentos
+            {lido && ` · lido do banco em ${lido}`}
+          </p>
+        </div>
+      </div>
+      <div className="mt-3 grid grid-cols-1 gap-x-8 md:grid-cols-2 2xl:grid-cols-4">
+        <MoneyGroup title="na conta" total={totalContas}>
+          {contas.map((a) => (
+            <MoneyLine key={a.id} label={a.name} value={a.balance} />
+          ))}
+        </MoneyGroup>
+        <MoneyGroup title="cofrinhos" total={totalCofrinhos}>
+          {cofrinhos.map((r, i) => (
+            <MoneyLine
+              key={`${r.conta}:${i}`}
+              label={r.name || "sem nome"}
+              value={r.amount}
+              tag={vaultNames.has(normalizeName(r.name)) ? "no app" : undefined}
+            />
+          ))}
+          {cofrinhos.length === 0 && <p className="py-1.5 text-xs lowercase text-fg-subtle">o banco não mostra cofrinhos.</p>}
+        </MoneyGroup>
+        <MoneyGroup title="investimentos" total={totalInvest}>
+          {[...investimentos].map(([label, value]) => (
+            <MoneyLine key={label} label={label} value={value} />
+          ))}
+        </MoneyGroup>
+        <MoneyGroup title="cartões · em uso" total={totalCartoes}>
+          {cartoes.map((a) => (
+            <MoneyLine key={a.id} label={a.name} value={a.balance} hint={a.creditLimit ? <>limite <Brl value={a.creditLimit} /></> : undefined} />
+          ))}
+        </MoneyGroup>
+      </div>
+    </section>
+  );
+}
+
+function MoneyGroup({ title, total, children }: { title: string; total: number; children: React.ReactNode }) {
+  return (
+    <div className="mt-3">
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">
+        {title} · <Brl value={total} />
+      </p>
+      <ul className="mt-1 flex flex-col divide-y divide-border-base">{children}</ul>
+    </div>
+  );
+}
+
+function MoneyLine({ label, value, tag, hint }: { label: string; value: number; tag?: string; hint?: React.ReactNode }) {
+  return (
+    <li className="flex items-center justify-between gap-3 py-1.5 text-sm">
+      <span className="min-w-0 truncate lowercase">
+        {label}
+        {tag && (
+          <span className="ml-2 rounded-full px-1.5 py-0.5 text-[10px] font-semibold" style={{ color: "var(--economia)", background: "var(--economia-soft)" }}>
+            {tag}
+          </span>
+        )}
+        {hint && <span className="ml-2 text-[11px] text-fg-subtle">{hint}</span>}
+      </span>
+      <span className="shrink-0 font-semibold tabular">
+        <Brl value={value} />
+      </span>
+    </li>
+  );
 }
