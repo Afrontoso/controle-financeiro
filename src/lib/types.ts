@@ -40,6 +40,11 @@ export interface Vault {
   /** O que já estava guardado quando o cofre foi criado no app. */
   initial: number;
   kind: VaultKind;
+  /**
+   * Dia em que o cofre foi criado (YYYY-MM-DD). `initial` já inclui tudo que
+   * aconteceu antes: movimentos anteriores entram no histórico, não no saldo.
+   */
+  createdAt?: string;
 }
 
 export interface Budget {

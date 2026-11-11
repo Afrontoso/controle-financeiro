@@ -343,7 +343,10 @@ export interface MonthBreakdown {
   year: number;
   month: number;
   label: string;
+  /** Renda do mês: entradas que não são resgate de cofre. */
   entradas: number;
+  /** Dinheiro tirado dos cofres (entradas ligadas a um cofre). Não é renda. */
+  resgates: number;
   /** Saídas avulsas e recorrentes. */
   contas: number;
   /** Faturas que vencem no mês (compras do cartão empurradas pro vencimento). */
@@ -351,8 +354,10 @@ export interface MonthBreakdown {
   /** Gasto diário lançado + cota dos orçamentos de hoje em diante. */
   diarios: number;
   economias: number;
-  /** entradas − contas − cartão − diários − economias. */
+  /** entradas + resgates − contas − cartão − diários − economias: quanto o saldo muda no mês. */
   sobra: number;
+  /** Saldo no último dia do mês anterior. */
+  saldoInicial: number;
   /** Saldo acumulado no último dia do mês. */
   saldoFinal: number;
   isCurrent: boolean;
@@ -360,25 +365,33 @@ export interface MonthBreakdown {
 
 export function breakdownMonth(month: MonthEntry): MonthBreakdown {
   let diarios = 0;
+  let resgates = 0;
   // Igual ao buildLedger: o lançado conta sempre, e a cota só de hoje em diante
   // (no passado `drain` já é zero).
   for (const day of month.days) {
     diarios += day.totals.gasto_diario + day.drain;
+    for (const tx of day.transactions) {
+      if (tx.type === "entrada" && tx.vaultId) resgates += tx.amount;
+    }
   }
   const { entrada, saida, cartao, investimento } = month.totals;
+  const sobra = entrada - saida - cartao - diarios - investimento;
+  const saldoFinal = month.days.at(-1)?.saldo ?? 0;
 
   return {
     key: month.key,
     year: month.year,
     month: month.month,
     label: month.label,
-    entradas: entrada,
+    entradas: entrada - resgates,
+    resgates,
     contas: saida,
     cartao,
     diarios,
     economias: investimento,
-    sobra: entrada - saida - cartao - diarios - investimento,
-    saldoFinal: month.days.at(-1)?.saldo ?? 0,
+    sobra,
+    saldoInicial: saldoFinal - sobra,
+    saldoFinal,
     isCurrent: month.isCurrent,
   };
 }

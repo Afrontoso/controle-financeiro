@@ -97,7 +97,7 @@ export async function syncOpenFinance(userId: string): Promise<SyncResult> {
   // (compra PENDING vira POSTED), sem mexer na decisão que você já tomou.
   const known = await prisma.bankTransaction.findMany({
     where: { id: { in: fetched.map((t) => t.id) } },
-    select: { id: true, bankStatus: true, amount: true },
+    select: { id: true, bankStatus: true, amount: true, status: true, reason: true },
   });
   const knownById = new Map(known.map((k) => [k.id, k]));
   const novas = fetched.filter((t) => !knownById.has(t.id));
@@ -128,6 +128,24 @@ export async function syncOpenFinance(userId: string): Promise<SyncResult> {
     });
   }
 
+  // Movimento de cofrinho ignorado porque o cofre não existia: se agora existe,
+  // volta para a caixa de entrada (o que é de meses anteriores vira histórico).
+  const monthStart = currentMonthStart();
+  const reabertas = fetched.filter((t) => {
+    const k = knownById.get(t.id);
+    return (
+      k?.status === "ignored" &&
+      k.reason?.startsWith("movimento do cofrinho") &&
+      classification.get(t.id)?.status === "pending"
+    );
+  });
+  for (const t of reabertas) {
+    await prisma.bankTransaction.update({
+      where: { id: t.id },
+      data: t.date < monthStart ? { status: "history" } : { status: "pending", reason: null },
+    });
+  }
+
   await prisma.bankSnapshot.upsert({
     where: { userId },
     create: { userId, data: snapshot as object },
@@ -145,7 +163,9 @@ export async function syncOpenFinance(userId: string): Promise<SyncResult> {
 
   return {
     novas: novas.length,
-    naCaixa: novas.filter((t) => classification.get(t.id)?.status === "pending").length,
+    naCaixa:
+      novas.filter((t) => classification.get(t.id)?.status === "pending").length +
+      reabertas.filter((t) => t.date >= monthStart).length,
     ignoradas: novas.filter((t) => classification.get(t.id)?.status === "ignored").length,
     atualizadas: mudaram.length,
     primeiraVez,

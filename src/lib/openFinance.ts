@@ -306,7 +306,14 @@ export function suggest(tx: BankTx, ctx: SuggestionContext): Suggestion {
       (o) => o.accountId === tx.accountId && o.date === tx.date && o.totalInstallments && purchaseKey(o) === key,
     ).length;
     if (sameDay > 1) {
-      note = `${sameDay} parcelas desta compra no mesmo dia: parece antecipação. se já pagou à parte, ignore`;
+      // Antecipar parcelas cobra na hora: o dinheiro sai no dia, não na próxima fatura.
+      return {
+        ...base,
+        action: "import",
+        type: "saida",
+        cardId: null,
+        note: `${sameDay} parcelas desta compra no mesmo dia: antecipação, sai do saldo no dia do pagamento`,
+      };
     }
   }
 

@@ -59,7 +59,8 @@ export function vaultBalances(
     const movimentos: Transaction[] = [];
 
     for (const tx of txs) {
-      const delta = vaultDelta(tx);
+      // O "já guardado" informado na criação já conta o que veio antes.
+      const delta = vault.createdAt && tx.date < vault.createdAt ? 0 : vaultDelta(tx);
       if (tx.date <= todayStr) {
         saldo += delta;
         movimentos.push(tx);

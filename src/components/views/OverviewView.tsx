@@ -116,33 +116,41 @@ const SEGMENTS = [
 ] as const;
 
 function SaldoCard({ summary, className }: { summary: MonthBreakdown; className?: string }) {
-  const { entradas, sobra } = summary;
-  const negativa = sobra < 0;
-  const base = Math.max(entradas, entradas - sobra, 1);
-  const pct = entradas > 0 ? (Math.abs(sobra) / entradas) * 100 : 0;
+  const { entradas, resgates, sobra, saldoInicial, saldoFinal } = summary;
+  const negativo = saldoFinal < 0;
+  const mesNegativo = sobra < 0;
+  const recursos = entradas + resgates;
+  const gastos = summary.contas + summary.cartao + summary.diarios + summary.economias;
+  const base = Math.max(recursos, gastos, 1);
+  const pctRenda = (value: number) => (entradas > 0 ? (value / entradas) * 100 : undefined);
 
   return (
     <Tile
-      title="saldo previsto"
-      info="entradas do mês menos contas, faturas do cartão que vencem nele, gastos diários (o lançado e a cota dos orçamentos de hoje em diante) e o que vai ser guardado. é quanto o saldo muda do dia 1 ao último dia do mês."
+      title="saldo no fim do mês"
+      info="quanto vai ter na conta no último dia do mês: o que sobrou do mês passado, mais a renda e o que tirar dos cofres, menos contas, faturas do cartão que vencem no mês, gastos diários (o lançado e a cota dos orçamentos de hoje em diante) e o que vai ser guardado."
       illustration="purse"
       className={className}
     >
       <div className="my-6 flex flex-wrap items-center gap-x-6 gap-y-3 md:my-10">
-        <BigMoney value={sobra} size="xl" color={negativa ? "var(--saida)" : undefined} />
+        <BigMoney value={saldoFinal} size="xl" color={negativo ? "var(--saida)" : undefined} />
         <div className="border-l border-border-base pl-4 text-xs lowercase">
           <p
             className="flex items-center gap-1 font-semibold"
-            style={{ color: negativa ? "var(--saida)" : "var(--entrada)" }}
+            style={{ color: mesNegativo ? "var(--saida)" : "var(--entrada)" }}
           >
-            {negativa ? <ArrowDownRight size={14} /> : <ArrowUpRight size={14} />}
-            {entradas > 0
-              ? `${formatPercent(pct, 0)} da renda ${negativa ? "faltando" : "livre"}`
-              : "sem entradas no mês"}
+            {mesNegativo ? <ArrowDownRight size={14} /> : <ArrowUpRight size={14} />}
+            {mesNegativo ? "o mês gasta mais do que entra" : "o mês fecha no positivo"}
           </p>
-          <p className="mt-0.5 max-w-60 text-fg-muted">
-            estimado depois de pagar as contas e guardar o que está planejado. no fim do mês o saldo fica em{" "}
-            <Brl value={summary.saldoFinal} />.
+          <p className="mt-0.5 max-w-64 text-fg-muted">
+            {mesNegativo ? "o saldo cai " : "o saldo sobe "}
+            <Brl value={Math.abs(sobra)} /> no mês
+            {mesNegativo && saldoInicial > 0 ? ", coberto pelo que sobrou do mês passado" : ""}.
+            {resgates > 0 && (
+              <>
+                {" "}
+                inclui <Brl value={resgates} /> tirados dos cofres.
+              </>
+            )}
           </p>
         </div>
       </div>
@@ -164,13 +172,19 @@ function SaldoCard({ summary, className }: { summary: MonthBreakdown; className?
           <div
             className="h-full rounded-full"
             style={{ width: `${(sobra / base) * 100}%`, background: "var(--entrada)" }}
-            title={`sobra: ${formatCurrency(sobra)}`}
+            title={`sobra do mês: ${formatCurrency(sobra)}`}
           />
         )}
       </div>
 
-      <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 lg:grid-cols-6">
-        <LegendItem label="renda" value={<Brl value={entradas} />} />
+      <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4 2xl:grid-cols-8">
+        <LegendItem label="mês passado" value={<Brl value={saldoInicial} />} />
+        <LegendItem
+          label="+ renda"
+          value={<Brl value={entradas} />}
+          color={entradas > 0 ? "var(--entrada)" : undefined}
+        />
+        {resgates > 0 && <LegendItem label="+ dos cofres" value={<Brl value={resgates} />} />}
         {SEGMENTS.map((seg) => (
           <LegendItem
             key={seg.key}
@@ -181,15 +195,14 @@ function SaldoCard({ summary, className }: { summary: MonthBreakdown; className?
                 − <Brl value={summary[seg.key]} />
               </>
             }
-            pct={entradas > 0 ? (summary[seg.key] / entradas) * 100 : undefined}
+            pct={pctRenda(summary[seg.key])}
           />
         ))}
         <LegendItem
-          label="= sobra"
-          dot={negativa ? "var(--saida)" : "var(--entrada)"}
-          value={<Brl value={sobra} />}
-          pct={entradas > 0 ? (sobra / entradas) * 100 : undefined}
-          color={negativa ? "var(--saida)" : "var(--entrada)"}
+          label="= fim do mês"
+          dot={negativo ? "var(--saida)" : "var(--entrada)"}
+          value={<Brl value={saldoFinal} />}
+          color={negativo ? "var(--saida)" : "var(--entrada)"}
         />
       </dl>
     </Tile>

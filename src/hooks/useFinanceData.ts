@@ -104,6 +104,7 @@ async function loadVaults(): Promise<Vault[]> {
           goalMonths: v.goalMonths ?? null,
           initial: Number(v.initial) || 0,
           kind: v.kind === "reserva" ? "reserva" : "cofre",
+          createdAt: typeof v.createdAt === "string" ? v.createdAt.slice(0, 10) : undefined,
         }))
       : [];
   } catch (error) {
