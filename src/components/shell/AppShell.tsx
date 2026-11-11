@@ -6,6 +6,7 @@ import {
   CreditCard,
   HandCoins,
   ReceiptText,
+  Repeat,
   TrendingUp,
   Landmark,
   PiggyBank,
@@ -23,6 +24,7 @@ import {
 export type ViewKey =
   | "visao"
   | "fluxo"
+  | "fixos"
   | "contas"
   | "renda"
   | "saldos"
@@ -49,8 +51,9 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { key: "visao", label: "visão geral", icon: Gauge, tab: true, short: "visão" },
   { key: "fluxo", label: "fluxo de caixa", icon: TrendingUp, tab: true, short: "fluxo" },
-  { key: "cartoes", label: "cartões", icon: CreditCard, tab: true },
   { key: "contas", label: "contas", icon: ReceiptText, tab: true },
+  { key: "fixos", label: "fixos", icon: Repeat, tab: true },
+  { key: "cartoes", label: "cartões", icon: CreditCard },
   { key: "apartamento", label: "apartamento", icon: Building2 },
   { key: "cofres", label: "cofres", icon: PiggyBank },
   { key: "renda", label: "renda", icon: HandCoins },

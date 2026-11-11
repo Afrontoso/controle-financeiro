@@ -10,6 +10,7 @@ import {
   CalendarDays,
   CalendarRange,
   ChevronRight,
+  CreditCard,
   Github,
   LayoutGrid,
   HandCoins,
@@ -36,7 +37,7 @@ const PIX_PAYLOAD = process.env.NEXT_PUBLIC_PIX_PAYLOAD ?? "";
 
 interface MenuViewProps {
   /** Telas que no celular não têm aba própria. */
-  onOpenView: (view: "saldos" | "totais" | "orcamentos") => void;
+  onOpenView: (view: "saldos" | "totais" | "orcamentos" | "cartoes") => void;
   onOpenIncome: () => void;
   onOpenHorizon: () => void;
   onOpenApartment: () => void;
@@ -103,6 +104,7 @@ export function MenuView({ onOpenView, onOpenIncome, onOpenHorizon, onOpenApartm
 
         <section className="overflow-hidden rounded-2xl border border-border-base bg-surface">
           {/* No desktop estes atalhos já vivem na barra lateral; no celular, as abas de baixo têm fluxo, cartões e contas. */}
+          <MenuRow icon={CreditCard} label="cartões" hint="faturas" onClick={() => onOpenView("cartoes")} className="md:hidden" />
           <MenuRow icon={HandCoins} label="renda" hint="o que entra" onClick={onOpenIncome} className="md:hidden" />
           <MenuRow
             icon={Building2}

@@ -227,6 +227,34 @@ export function useFinanceData() {
     [refreshTransactions],
   );
 
+  /** Muda uma série daqui pra frente (a partir de `from`); o passado fica. */
+  const updateSeries = useCallback(
+    async (groupId: string, from: string, changes: { amount?: number; description?: string; day?: number }) => {
+      const res = await fetch(`/api/series/${groupId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ from, ...changes }),
+      });
+      if (!res.ok) throw new Error("Falha ao editar");
+      await refreshTransactions();
+    },
+    [refreshTransactions],
+  );
+
+  /** Encerra uma série: apaga as ocorrências a partir de `from`. */
+  const endSeries = useCallback(
+    async (groupId: string, from: string) => {
+      const res = await fetch(`/api/series/${groupId}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ from }),
+      });
+      if (!res.ok) throw new Error("Falha ao encerrar");
+      await refreshTransactions();
+    },
+    [refreshTransactions],
+  );
+
   const deleteTransaction = useCallback(
     async (id: string, deleteAll: boolean) => {
       const res = await fetch(`/api/transactions/${id}`, {
@@ -382,6 +410,8 @@ export function useFinanceData() {
   }, []);
 
   return {
+    updateSeries,
+    endSeries,
     transactions,
     budgets,
     cards,

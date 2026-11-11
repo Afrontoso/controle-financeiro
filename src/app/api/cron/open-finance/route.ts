@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { syncOpenFinance } from "@/lib/openFinanceSync";
+import { openFinanceEnabled, syncOpenFinance } from "@/lib/openFinanceSync";
 
 export const maxDuration = 60;
 
@@ -15,6 +15,7 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 
+    if (!openFinanceEnabled()) return NextResponse.json({ skipped: "open finance desligado" });
     const email = process.env.OPEN_FINANCE_OWNER_EMAIL?.trim().toLowerCase();
     if (!email) return NextResponse.json({ skipped: "sem dono configurado" });
 

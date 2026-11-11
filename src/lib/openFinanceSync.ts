@@ -19,7 +19,16 @@ const FIRST_SYNC_DAYS = 60;
 const RESYNC_DAYS = 30;
 
 /** Só o dono das credenciais usa: o Meu Pluggy lê as contas de UM CPF. */
+/**
+ * Chave geral: o Open Finance só liga com OPEN_FINANCE_ENABLED=true. Desligado,
+ * o app funciona só com lançamentos manuais e nenhuma tela de banco aparece.
+ */
+export function openFinanceEnabled(): boolean {
+  return process.env.OPEN_FINANCE_ENABLED?.trim().toLowerCase() === "true";
+}
+
 export function isOpenFinanceOwner(email: string | null | undefined): boolean {
+  if (!openFinanceEnabled()) return false;
   const owner = process.env.OPEN_FINANCE_OWNER_EMAIL?.trim().toLowerCase();
   return Boolean(owner && email && email.trim().toLowerCase() === owner && pluggyConfig());
 }

@@ -35,7 +35,7 @@ export async function DELETE(
         if (deleteAll && transaction.groupId) {
             // Delete all transactions with the same groupId
             await prisma.transaction.deleteMany({
-                where: { groupId: transaction.groupId }
+                where: { groupId: transaction.groupId, userId }
             });
         } else {
             // Delete only this transaction
@@ -106,7 +106,7 @@ export async function PATCH(
         if (updateAll && transaction.groupId) {
             // Edita o valor, tipo e descricao de todas as ocorrencias do grupo
             await prisma.transaction.updateMany({
-                where: { groupId: transaction.groupId },
+                where: { groupId: transaction.groupId, userId },
                 data: updateData
             });
         } else {

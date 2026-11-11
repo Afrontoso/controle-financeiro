@@ -10,6 +10,7 @@ import { CardsView } from "@/components/views/CardsView";
 import { CashFlowView } from "@/components/views/CashFlowView";
 import { BillsView } from "@/components/views/BillsView";
 import { IncomeView } from "@/components/views/IncomeView";
+import { FixedView } from "@/components/views/FixedView";
 import { MenuView } from "@/components/views/MenuView";
 import { OverviewView } from "@/components/views/OverviewView";
 import { ApartmentView } from "@/components/views/ApartmentView";
@@ -63,6 +64,7 @@ const VIEW_TITLES: Record<ViewKey, string> = {
   bancos: "bancos",
   cartoes: "cartões de crédito",
   fluxo: "fluxo de caixa",
+  fixos: "rendas, contas e cartão",
   contas: "contas",
   renda: "renda",
   menu: "menu",
@@ -658,6 +660,26 @@ export function FinanceApp() {
           dailyQuota={dailyDrain(budgets)}
           today={today}
           onSelectDay={(dateStr) => openDay(dateStr)}
+        />
+      )}
+
+      {view === "fixos" && (
+        <FixedView
+          transactions={transactions}
+          cards={cards}
+          today={today}
+          onCreate={finance.createTransaction}
+          onUpdateSeries={finance.updateSeries}
+          onEndSeries={finance.endSeries}
+          onCreateCard={() => {
+            setEditingCard(null);
+            setCardModalOpen(true);
+          }}
+          onEditCard={(card) => {
+            setEditingCard(card);
+            setCardModalOpen(true);
+          }}
+          onDeleteCard={setDeletingCard}
         />
       )}
 
