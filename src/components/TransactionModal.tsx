@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Banknote, CalendarDays, CreditCard, Pencil, PiggyBank, Repeat } from "lucide-react";
+import { Banknote, CalendarDays, CreditCard, Pencil, PiggyBank, Repeat, Users } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
 import { TypeBadge } from "@/components/ui/TypeBadge";
@@ -51,6 +51,8 @@ interface TransactionModalProps {
   defaultVaultId?: string | null;
   /** Rascunho para criar: nome e valor já preenchidos, opcionalmente todo mês sem fim. */
   draft?: { description: string; amount: number; monthly?: boolean } | null;
+  /** Responsável já marcado ao criar (o app mostrando só a esposa, por exemplo). */
+  defaultConjuge?: boolean;
   submitting: boolean;
   onSubmit: (payload: TransactionPayload) => void;
 }
@@ -64,6 +66,7 @@ export function TransactionModal({
   vaults = [],
   defaultVaultId = null,
   draft = null,
+  defaultConjuge = false,
   submitting,
   onSubmit,
 }: TransactionModalProps) {
@@ -73,6 +76,7 @@ export function TransactionModal({
   );
   const [type, setType] = useState<TxType>(editing?.type ?? defaultType);
   const [description, setDescription] = useState(editing?.description ?? draft?.description ?? "");
+  const [conjuge, setConjuge] = useState(editing ? Boolean(editing.conjuge) : defaultConjuge);
   const [dateValue, setDateValue] = useState(editing?.date ?? date);
   const [cardId, setCardId] = useState<string | null>(
     () => editing?.cardId ?? cards[0]?.id ?? null,
@@ -105,6 +109,7 @@ export function TransactionModal({
       type,
       amount,
       description: description.trim(),
+      conjuge,
       cardId: type === "cartao" ? cardId : null,
       vaultId: type === "investimento" || type === "entrada" ? vaultId : null,
       repeatFrequency: repeats ? frequency : undefined,
@@ -212,6 +217,32 @@ export function TransactionModal({
               className="w-full bg-transparent lowercase outline-none placeholder:text-fg-subtle"
               aria-label="Descrição"
             />
+          </Row>
+
+          <Row icon={Users}>
+            <div className="flex flex-1 items-center justify-between gap-2">
+              <span className="lowercase text-fg-muted">de quem</span>
+              <div className="flex gap-1 rounded-full bg-surface-3 p-0.5 text-xs lowercase">
+                {(
+                  [
+                    [false, "eu"],
+                    [true, "esposa"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => setConjuge(value)}
+                    aria-pressed={conjuge === value}
+                    className={`rounded-full px-3 py-1 font-medium transition-colors ${
+                      conjuge === value ? "bg-surface shadow-sm" : "text-fg-muted"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </Row>
 
           <Row icon={CalendarDays}>

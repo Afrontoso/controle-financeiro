@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CONJUGE_CATEGORY, type Budget, type Card, type Transaction, type TxType, type Vault } from "@/lib/types";
+import { categoryFor, isConjugeCategory, type Budget, type Card, type Transaction, type TxType, type Vault } from "@/lib/types";
 import { isTxType } from "@/lib/types";
 
 interface RawTransaction {
@@ -52,7 +52,7 @@ function normalizeTransaction(raw: RawTransaction): Transaction {
     vaultId: raw.vaultId ?? undefined,
     source: raw.source ?? undefined,
     paid: Boolean(raw.paidAt),
-    conjuge: raw.category === CONJUGE_CATEGORY,
+    conjuge: isConjugeCategory(raw.category),
   };
 }
 
@@ -135,7 +135,7 @@ export interface TransactionPayload {
   repeatFrequency?: "diario" | "semanal" | "mensal";
   repeatCount?: number;
   isIndeterminate?: boolean;
-  /** Só entrada: renda da esposa. */
+  /** Responsável é a esposa. */
   conjuge?: boolean;
 }
 
@@ -149,7 +149,7 @@ function buildBody(payload: TransactionPayload) {
     // Meio-dia evita que o fuso empurre o lançamento para o dia vizinho.
     date: new Date(`${payload.date}T12:00:00`).toISOString(),
     type: payload.type,
-    category: payload.type === "entrada" && payload.conjuge ? CONJUGE_CATEGORY : payload.type,
+    category: categoryFor(payload.type, payload.conjuge),
     // Fora do cartão o vínculo não faz sentido e é sempre desfeito.
     cardId: payload.type === "cartao" ? (payload.cardId ?? null) : null,
     vaultId:

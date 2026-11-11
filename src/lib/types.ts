@@ -26,12 +26,28 @@ export interface Transaction {
   source?: string;
   /** Marcado como pago. Só registro: não muda o saldo projetado. */
   paid?: boolean;
-  /** Entrada que é renda da esposa, não sua (gravado como category "entrada:conjuge"). */
+  /** Responsável é a esposa, não você (gravado como category "<tipo>:conjuge"). */
   conjuge?: boolean;
 }
 
-/** Valor de `category` que marca a renda da esposa. */
-export const CONJUGE_CATEGORY = "entrada:conjuge";
+/** Sufixo de `category` que marca o lançamento como da esposa. */
+const CONJUGE_SUFFIX = ":conjuge";
+
+export function categoryFor(type: TxType, conjuge?: boolean): string {
+  return conjuge ? `${type}${CONJUGE_SUFFIX}` : type;
+}
+
+export function isConjugeCategory(category: string | null | undefined): boolean {
+  return Boolean(category?.endsWith(CONJUGE_SUFFIX));
+}
+
+/** De quem o app está mostrando: os dois, só você ou só a esposa. */
+export type PersonFilter = "todos" | "eu" | "esposa";
+
+export function matchesPerson(tx: Pick<Transaction, "conjuge">, filter: PersonFilter): boolean {
+  if (filter === "todos") return true;
+  return filter === "esposa" ? Boolean(tx.conjuge) : !tx.conjuge;
+}
 
 export type VaultKind = "reserva" | "cofre";
 

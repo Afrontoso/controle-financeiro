@@ -45,7 +45,7 @@ import {
   type YearMonth,
 } from "@/lib/ledger";
 import { fromDateStr, toDateStr } from "@/lib/format";
-import type { Budget, Card, Transaction, TxType, Vault } from "@/lib/types";
+import { matchesPerson, type Budget, type Card, type PersonFilter, type Transaction, type TxType, type Vault } from "@/lib/types";
 
 /** Meses exibidos de uma vez em saldos e horizonte. */
 const WINDOW_SPAN = 12;
@@ -73,7 +73,23 @@ const VIEW_TITLES: Record<ViewKey, string> = {
 export function FinanceApp() {
   const showToast = useToast();
   const finance = useFinanceData();
-  const { transactions, budgets, cards, vaults, loading } = finance;
+  const { transactions: allTransactions, budgets, cards, vaults, loading } = finance;
+
+  // De quem o app está mostrando. Fica guardado neste navegador.
+  const [person, setPerson] = useState<PersonFilter>(() => {
+    if (typeof window === "undefined") return "todos";
+    const saved = window.localStorage.getItem("pessoa");
+    return saved === "eu" || saved === "esposa" ? saved : "todos";
+  });
+  const changePerson = useCallback((next: PersonFilter) => {
+    setPerson(next);
+    window.localStorage.setItem("pessoa", next);
+  }, []);
+  // Tudo o que o app calcula (saldos, totais, visão geral) parte daqui.
+  const transactions = useMemo(
+    () => (person === "todos" ? allTransactions : allTransactions.filter((tx) => matchesPerson(tx, person))),
+    [allTransactions, person],
+  );
   const apartment = useApartment();
   const openFinance = useOpenFinance();
   const [planModalOpen, setPlanModalOpen] = useState(false);
@@ -611,6 +627,8 @@ export function FinanceApp() {
     >
       <ViewHeader
         title={VIEW_TITLES[view]}
+        person={person}
+        onPersonChange={changePerson}
       >
         {view === "saldos" || view === "horizonte" ? (
           <PeriodPicker start={windowStart} span={WINDOW_SPAN} onChange={setWindowStart} />
@@ -859,6 +877,7 @@ export function FinanceApp() {
           defaultType={txPreset?.type ?? (dayFilter === "todos" ? mobileType : dayFilter)}
           defaultVaultId={txPreset?.vaultId ?? null}
           draft={txPreset?.draft ?? null}
+          defaultConjuge={person === "esposa"}
           cards={cards}
           vaults={vaults}
           submitting={submitting}

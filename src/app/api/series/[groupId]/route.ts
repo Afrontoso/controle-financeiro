@@ -35,10 +35,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ gr
 
         // De quem é a renda: muda a série inteira, porque não é algo que varia mês a mês.
         if (typeof body.conjuge === "boolean") {
-            await prisma.transaction.updateMany({
-                where: { userId, groupId, type: "entrada" },
-                data: { category: body.conjuge ? "entrada:conjuge" : "entrada" },
-            });
+            const sample = await prisma.transaction.findFirst({ where: { userId, groupId }, select: { type: true } });
+            if (sample?.type) {
+                await prisma.transaction.updateMany({
+                    where: { userId, groupId },
+                    data: { category: body.conjuge ? `${sample.type}:conjuge` : sample.type },
+                });
+            }
         }
 
         const rows = await prisma.transaction.findMany({

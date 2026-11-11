@@ -250,6 +250,11 @@ function TransactionRow({
       <div className="flex items-center gap-3">
         <TypeBadge type={tx.type} size={20} />
         <span className="min-w-0 flex-1 truncate font-medium lowercase">{tx.description}</span>
+        {tx.conjuge && (
+          <span className="shrink-0 rounded-full bg-[var(--ov-blue-soft)] px-1.5 py-0.5 text-[10px] font-semibold lowercase text-[var(--ov-blue)]">
+            esposa
+          </span>
+        )}
         <span className="shrink-0 font-semibold tabular" style={{ color: meta.color }}>
           <Brl value={tx.amount} />
         </span>

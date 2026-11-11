@@ -356,6 +356,11 @@ function SeriesRow({
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium lowercase">{s.label}</p>
           <p className="text-[11px] lowercase text-fg-subtle">
+            {s.conjuge && s.type !== "entrada" && (
+              <span className="mr-1 rounded-full bg-[var(--ov-blue-soft)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--ov-blue)]">
+                esposa
+              </span>
+            )}
             todo dia {s.day}
             {card && ` · ${card.name}`}
             {" · "}
@@ -425,9 +430,7 @@ function SeriesRow({
               placeholder="dia"
             />
           </div>
-          {s.type === "entrada" && (
-            <OwnerPicker conjuge={conjuge} onChange={setConjuge} />
-          )}
+          <OwnerPicker conjuge={conjuge} onChange={setConjuge} />
           <p className="text-[11px] lowercase text-fg-subtle">
             vale a partir de {formatDayMonth(from)}. o que já passou não muda.
           </p>
@@ -520,7 +523,7 @@ function AddForm({
         repeatFrequency: "mensal",
         repeatCount: semFim ? undefined : n,
         isIndeterminate: semFim,
-        conjuge: kind === "entrada" ? conjuge : undefined,
+        conjuge,
       });
       onCancel();
     } catch {
@@ -594,9 +597,7 @@ function AddForm({
           ))}
         </select>
       )}
-      {kind === "entrada" && (
-        <OwnerPicker conjuge={conjuge} onChange={setConjuge} />
-      )}
+      <OwnerPicker conjuge={conjuge} onChange={setConjuge} />
       <div className="flex flex-wrap items-center gap-2 text-xs lowercase">
         <Segment active={semFim} onClick={() => setSemFim(true)}>
           {isCard ? "assinatura, todo mês" : "todo mês, sem fim"}
@@ -776,7 +777,7 @@ function IconButton({
   );
 }
 
-/** De quem é a renda: sua ou da esposa. */
+/** Quem é o responsável: você ou a esposa. */
 function OwnerPicker({
   conjuge,
   onChange,
@@ -788,10 +789,10 @@ function OwnerPicker({
     <div className="flex flex-wrap items-center gap-2 text-xs lowercase">
       <span className="text-fg-muted">de quem:</span>
       <Segment active={!conjuge} onClick={() => onChange(false)}>
-        minha
+        eu
       </Segment>
       <Segment active={conjuge} onClick={() => onChange(true)}>
-        da esposa
+        esposa
       </Segment>
     </div>
   );
