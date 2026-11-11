@@ -14,7 +14,8 @@ interface ApartmentPlanModalProps {
 }
 
 const inputClass =
-  "w-full rounded-xl border border-border-base bg-surface-2 px-3 py-2.5 text-sm tabular outline-none placeholder:text-fg-subtle focus:border-border-strong";
+  // Altura fixa: campos de data e mês têm altura própria em alguns navegadores.
+  "h-11 w-full rounded-xl border border-border-base bg-surface-2 px-3 text-sm tabular outline-none placeholder:text-fg-subtle focus:border-border-strong";
 
 export function ApartmentPlanModal({ initial, busy, onClose, onSave }: ApartmentPlanModalProps) {
   const [p, setP] = useState<ApartmentPremises>(initial);
@@ -42,7 +43,7 @@ export function ApartmentPlanModal({ initial, busy, onClose, onSave }: Apartment
             <Field label="nome" wide>
               <input className={inputClass} value={p.nome} onChange={(e) => set("nome", e.target.value)} />
             </Field>
-            <Field label="renda que o banco considera" hint="só o que entra na aprovação">
+            <Field label="renda para o banco" hint="só o que entra na aprovação">
               <MoneyInput value={p.rendaBanco} onChange={(v) => set("rendaBanco", v)} />
             </Field>
             <Field label="data do contrato" hint="base da correção pelo incc">
@@ -100,7 +101,7 @@ export function ApartmentPlanModal({ initial, busy, onClose, onSave }: Apartment
           </Group>
 
           <Group title="financiamento no banco">
-            <Field label="valor financiado" hint="da simulação">
+            <Field label="valor financiado" hint="o da simulação">
               <MoneyInput value={p.valorFinanciado} onChange={(v) => set("valorFinanciado", v)} />
             </Field>
             <Field label="juros ao ano (efetivo)" hint="ex.: 7,23">
@@ -110,13 +111,13 @@ export function ApartmentPlanModal({ initial, busy, onClose, onSave }: Apartment
               <NumberInput value={p.prazoMeses} onChange={(v) => set("prazoMeses", v)} />
             </Field>
             <Field label="sistema">
-              <div className="flex gap-1 rounded-xl bg-surface-3 p-1">
+              <div className="flex h-11 gap-1 rounded-xl bg-surface-3 p-1">
                 {(["PRICE", "SAC"] as const).map((s) => (
                   <button
                     key={s}
                     type="button"
                     onClick={() => set("sistema", s)}
-                    className={`flex-1 rounded-lg py-1.5 text-sm font-medium transition-colors ${
+                    className={`flex-1 rounded-lg text-sm font-medium transition-colors ${
                       p.sistema === s ? "bg-surface shadow-sm" : "text-fg-muted"
                     }`}
                   >
@@ -131,22 +132,22 @@ export function ApartmentPlanModal({ initial, busy, onClose, onSave }: Apartment
             <Field label="dia do vencimento">
               <DayInput value={p.diaVencimentoBanco} onChange={(v) => set("diaVencimentoBanco", v)} />
             </Field>
-            <Field label="assinatura no banco" hint="mês">
+            <Field label="assinatura no banco">
               <input type="month" className={inputClass} value={p.assinaturaBanco} onChange={(e) => set("assinaturaBanco", e.target.value)} />
             </Field>
             <Field label="incc ao mês" hint="ex.: 0,5">
               <PercentInput value={p.inccMensal} onChange={(v) => set("inccMensal", v)} />
             </Field>
-            <Field label="tr ao mês" hint="corrige saldo e parcela · ex.: 0,1">
+            <Field label="tr ao mês" hint="corrige saldo e parcela. ex.: 0,1">
               <PercentInput value={p.trMensal} onChange={(v) => set("trMensal", v)} />
             </Field>
-            <Field label="obra executada na assinatura" hint="% — chute, ajuste depois">
+            <Field label="obra pronta na assinatura" hint="chute; ajuste depois">
               <PercentInput value={p.obraExecutadaNaAssinatura} onChange={(v) => set("obraExecutadaNaAssinatura", v)} />
             </Field>
           </Group>
 
           <Group title="chaves e depois">
-            <Field label="previsão de entrega" hint="mês">
+            <Field label="previsão de entrega">
               <input type="month" className={inputClass} value={p.previsaoChaves} onChange={(e) => set("previsaoChaves", e.target.value)} />
             </Field>
             <Field label="atraso da obra (meses)" hint="0 a 6 sem multa">
@@ -168,13 +169,13 @@ export function ApartmentPlanModal({ initial, busy, onClose, onSave }: Apartment
               <MoneyInput value={p.amortizacaoExtra} onChange={(v) => set("amortizacaoExtra", v)} />
             </Field>
             <Field label="o que reduzir">
-              <div className="flex gap-1 rounded-xl bg-surface-3 p-1">
+              <div className="flex h-11 gap-1 rounded-xl bg-surface-3 p-1">
                 {(["prazo", "parcela"] as const).map((m) => (
                   <button
                     key={m}
                     type="button"
                     onClick={() => set("amortizacaoModo", m)}
-                    className={`flex-1 rounded-lg py-1.5 text-sm font-medium lowercase transition-colors ${
+                    className={`flex-1 rounded-lg text-sm font-medium lowercase transition-colors ${
                       p.amortizacaoModo === m ? "bg-surface shadow-sm" : "text-fg-muted"
                     }`}
                   >
@@ -183,7 +184,7 @@ export function ApartmentPlanModal({ initial, busy, onClose, onSave }: Apartment
                 ))}
               </div>
             </Field>
-            <Field label="a partir de" hint="mês · vazio = desde as chaves">
+            <Field label="a partir de" hint="vazio = desde as chaves">
               <input type="month" className={inputClass} value={p.amortizacaoInicio} onChange={(e) => set("amortizacaoInicio", e.target.value)} />
             </Field>
           </Group>
@@ -244,7 +245,7 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
   return (
     <section>
       <h3 className="mb-2 text-sm font-semibold lowercase">{title}</h3>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">{children}</div>
+      <div className="grid grid-cols-1 items-start gap-x-3 gap-y-4 sm:grid-cols-2 md:grid-cols-3">{children}</div>
     </section>
   );
 }
@@ -261,12 +262,14 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
+    // Nome numa linha só e a dica embaixo da caixa: assim as caixas da mesma
+    // linha ficam alinhadas, tenha a dica o tamanho que tiver.
     <label className={`flex min-w-0 flex-col gap-1 ${wide ? "sm:col-span-2" : ""}`}>
-      <span className="text-xs lowercase text-fg-muted">
+      <span className="truncate text-xs lowercase text-fg-muted" title={label}>
         {label}
-        {hint && <span className="text-fg-subtle"> · {hint}</span>}
       </span>
       {children}
+      {hint && <span className="text-[11px] leading-snug lowercase text-fg-subtle">{hint}</span>}
     </label>
   );
 }
