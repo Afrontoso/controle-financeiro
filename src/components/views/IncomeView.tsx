@@ -95,7 +95,7 @@ export function IncomeView({ transactions, today, rendaBanco }: IncomeViewProps)
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium lowercase">{s.label}</p>
                     <p className="text-[11px] lowercase text-fg-subtle">
-                      {s.fixa ? "fixa" : "avulsa"} · {s.futura ? "cai" : "caiu"} dia {s.day}
+                      {s.conjuge ? "da esposa" : "minha"} · {s.fixa ? "fixa" : "avulsa"} · {s.futura ? "cai" : "caiu"} dia {s.day}
                       {s.count > 1 && ` · ${s.count} vezes`}
                     </p>
                   </div>

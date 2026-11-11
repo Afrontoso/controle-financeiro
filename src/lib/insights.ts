@@ -391,6 +391,8 @@ export interface IncomeSource {
   count: number;
   /** Ainda vai cair neste mês. */
   futura: boolean;
+  /** Renda da esposa. */
+  conjuge: boolean;
 }
 
 /** De onde veio (ou vem) a renda do mês, agrupada por pagador. */
@@ -415,6 +417,7 @@ export function incomeSources(transactions: Transaction[], ym: YearMonth, today:
         fixa: Boolean(tx.groupId),
         count: 1,
         futura: tx.date > todayStr,
+        conjuge: Boolean(tx.conjuge),
       });
     }
   }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { Budget, Card, Transaction, TxType, Vault } from "@/lib/types";
+import { CONJUGE_CATEGORY, type Budget, type Card, type Transaction, type TxType, type Vault } from "@/lib/types";
 import { isTxType } from "@/lib/types";
 
 interface RawTransaction {
@@ -52,6 +52,7 @@ function normalizeTransaction(raw: RawTransaction): Transaction {
     vaultId: raw.vaultId ?? undefined,
     source: raw.source ?? undefined,
     paid: Boolean(raw.paidAt),
+    conjuge: raw.category === CONJUGE_CATEGORY,
   };
 }
 
@@ -134,6 +135,8 @@ export interface TransactionPayload {
   repeatFrequency?: "diario" | "semanal" | "mensal";
   repeatCount?: number;
   isIndeterminate?: boolean;
+  /** Só entrada: renda da esposa. */
+  conjuge?: boolean;
 }
 
 function buildBody(payload: TransactionPayload) {
@@ -146,7 +149,7 @@ function buildBody(payload: TransactionPayload) {
     // Meio-dia evita que o fuso empurre o lançamento para o dia vizinho.
     date: new Date(`${payload.date}T12:00:00`).toISOString(),
     type: payload.type,
-    category: payload.type,
+    category: payload.type === "entrada" && payload.conjuge ? CONJUGE_CATEGORY : payload.type,
     // Fora do cartão o vínculo não faz sentido e é sempre desfeito.
     cardId: payload.type === "cartao" ? (payload.cardId ?? null) : null,
     vaultId:
@@ -229,7 +232,11 @@ export function useFinanceData() {
 
   /** Muda uma série daqui pra frente (a partir de `from`); o passado fica. */
   const updateSeries = useCallback(
-    async (groupId: string, from: string, changes: { amount?: number; description?: string; day?: number }) => {
+    async (
+      groupId: string,
+      from: string,
+      changes: { amount?: number; description?: string; day?: number; conjuge?: boolean },
+    ) => {
       const res = await fetch(`/api/series/${groupId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },

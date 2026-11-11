@@ -597,7 +597,7 @@ function ApeCard({ plan, summary, onOpen }: { plan: ApartmentPremises; summary: 
     <Tile
       title="meu apê"
       subtitle="moradia do mês: aluguel e tudo do apartamento"
-      info="aluguel, construtora, despachante, juros de obra, parcela do banco e condomínio deste mês, pelas premissas do imóvel. “só o salário” é a renda que a caixa considera; “renda total” são todas as entradas do mês. a marca é a referência de 30% que o banco usa para aprovar."
+      info="aluguel, construtora, despachante, juros de obra, parcela do banco e condomínio deste mês, pelas premissas do imóvel. “só meu salário” é a renda que a caixa considera; “renda total” são todas as entradas do mês, a sua e a da esposa. a marca é a referência de 30% que o banco usa para aprovar."
       illustration="house"
       onTitleClick={onOpen}
     >
@@ -614,7 +614,7 @@ function ApeCard({ plan, summary, onOpen }: { plan: ApartmentPremises; summary: 
       <div className="mt-4 grid grid-cols-2 gap-1 rounded-xl bg-surface-3 p-1 text-xs lowercase">
         {(
           [
-            ["salario", "só o salário"],
+            ["salario", "só meu salário"],
             ["total", "renda total"],
           ] as const
         ).map(([key, label]) => (
@@ -656,32 +656,85 @@ function ApeCard({ plan, summary, onOpen }: { plan: ApartmentPremises; summary: 
 }
 
 function ComprometidoCard({ summary }: { summary: MonthBreakdown }) {
-  const { entradas, contas, cartao } = summary;
+  const [base, setBase] = useState<"minha" | "total">("minha");
+  const { entradas, rendaConjuge, contas, cartao } = summary;
+  const minha = entradas - rendaConjuge;
+  const renda = base === "minha" ? minha : entradas;
   const comprometido = contas + cartao;
-  const pct = entradas > 0 ? comprometido / entradas : 0;
+  const pct = renda > 0 ? comprometido / renda : 0;
   const tone = pct > 0.7 ? "var(--saida)" : pct > 0.5 ? "#ea580c" : "var(--entrada)";
 
   return (
     <Tile
       title="comprometido"
       subtitle="contas e faturas do mês"
-      info="contas e faturas do mês em % das entradas: o que já tem destino antes de você decidir qualquer coisa. acima de 50% começa a apertar; acima de 70% qualquer imprevisto vira dívida."
+      info="contas e faturas do mês em % da renda: o que já tem destino antes de você decidir qualquer coisa. “só minha renda” deixa de fora a renda da esposa (marcada em fixos); “renda total” soma as duas. acima de 50% começa a apertar; acima de 70% qualquer imprevisto vira dívida."
       illustration="house"
     >
       <div className="mt-6">
         <BigMoney value={comprometido} size="lg" />
         <p className="mt-1 text-xs lowercase text-fg-muted">
           <span className="font-semibold" style={{ color: tone }}>
-            {entradas > 0 ? `${formatPercent(pct * 100, 0)} das entradas` : "sem entradas no mês"}
+            {renda > 0 ? `${formatPercent(pct * 100, 0)} da renda` : "sem renda para comparar"}
           </span>{" "}
           · referência: até 50%
         </p>
       </div>
+      <IncomeToggle
+        value={base}
+        onChange={setBase}
+        options={[
+          ["minha", "só minha renda"],
+          ["total", "renda total"],
+        ]}
+      />
       <div className="relative mt-6 h-2.5 w-full rounded-full bg-surface-3">
         <div className="h-full rounded-full" style={{ width: `${Math.min(pct, 1) * 100}%`, background: tone }} />
         <span className="absolute -top-1 -bottom-1 w-0.5 rounded-full bg-fg" style={{ left: "50%" }} />
       </div>
+      <dl className="mt-4 flex flex-col gap-1 text-xs">
+        <div className="flex justify-between gap-2">
+          <dt className="lowercase text-fg-muted">minha renda</dt>
+          <dd className="font-medium tabular">
+            <Brl value={minha} />
+          </dd>
+        </div>
+        {rendaConjuge > 0 && (
+          <div className="flex justify-between gap-2">
+            <dt className="lowercase text-fg-muted">renda da esposa</dt>
+            <dd className="font-medium tabular">
+              <Brl value={rendaConjuge} />
+            </dd>
+          </div>
+        )}
+      </dl>
     </Tile>
+  );
+}
+
+/** Seletor de base da renda: só a sua ou a total. */
+function IncomeToggle<K extends string>({
+  value,
+  onChange,
+  options,
+}: {
+  value: K;
+  onChange: (v: K) => void;
+  options: readonly (readonly [K, string])[];
+}) {
+  return (
+    <div className="mt-4 grid grid-cols-2 gap-1 rounded-xl bg-surface-3 p-1 text-xs lowercase">
+      {options.map(([key, label]) => (
+        <button
+          key={key}
+          type="button"
+          onClick={() => onChange(key)}
+          className={`rounded-lg py-1.5 font-medium transition-colors ${value === key ? "bg-surface shadow-sm" : "text-fg-muted"}`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
   );
 }
 

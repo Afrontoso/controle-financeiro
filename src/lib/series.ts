@@ -29,6 +29,8 @@ export interface Series {
   total: number;
   /** Sem número de parcelas: repete até você encerrar. */
   semFim: boolean;
+  /** Renda da esposa. */
+  conjuge: boolean;
 }
 
 /**
@@ -65,6 +67,7 @@ export function activeSeries(transactions: Transaction[], types: TxType[], today
       restantes: futuras.length,
       total: list.length,
       semFim: !list.some((t) => SUFFIX.test(t.description)),
+      conjuge: Boolean(ref.conjuge),
     });
   }
   return result.sort((a, b) => a.day - b.day || b.amount - a.amount);

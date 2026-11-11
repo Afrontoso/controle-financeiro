@@ -25,7 +25,12 @@ interface FixedViewProps {
   onUpdateSeries: (
     groupId: string,
     from: string,
-    changes: { amount?: number; description?: string; day?: number },
+    changes: {
+      amount?: number;
+      description?: string;
+      day?: number;
+      conjuge?: boolean;
+    },
   ) => Promise<void>;
   onEndSeries: (groupId: string, from: string) => Promise<void>;
   onCreateCard: () => void;
@@ -47,6 +52,11 @@ export function FixedView(props: FixedViewProps) {
   const cartao = activeSeries(transactions, ["cartao"], today);
 
   const renda = seriesTotalThisMonth(transactions, rendas, today);
+  const rendaConjuge = seriesTotalThisMonth(
+    transactions,
+    rendas.filter((s) => s.conjuge),
+    today,
+  );
   const contas = seriesTotalThisMonth(transactions, saidas, today);
   const noCartao = seriesTotalThisMonth(transactions, cartao, today);
   const sobra = renda - contas - noCartao;
@@ -66,6 +76,14 @@ export function FixedView(props: FixedViewProps) {
               label="rendas"
               value={<Brl value={renda} />}
               color="var(--entrada)"
+              hint={
+                rendaConjuge > 0 ? (
+                  <>
+                    minha <Brl value={renda - rendaConjuge} /> · esposa{" "}
+                    <Brl value={rendaConjuge} />
+                  </>
+                ) : undefined
+              }
             />
             <Stat label="contas fixas" value={<Brl value={contas} />} />
             <Stat
@@ -145,18 +163,42 @@ function SeriesTile({
           <Brl value={total} /> por mês
         </p>
       )}
-      <ul className="mt-3 flex flex-col divide-y divide-border-base">
-        {series.map((s) => (
-          <SeriesRow
-            key={s.groupId}
-            series={s}
-            cards={cards}
-            today={today}
-            onUpdate={onUpdateSeries}
-            onEnd={onEndSeries}
-          />
-        ))}
-      </ul>
+      {(kind === "entrada"
+        ? [
+            { title: "minha renda", items: series.filter((s) => !s.conjuge) },
+            {
+              title: "renda da esposa",
+              items: series.filter((s) => s.conjuge),
+            },
+          ].filter((g) => g.items.length > 0)
+        : [{ title: null, items: series }]
+      ).map((group) => (
+        <div key={group.title ?? "todas"}>
+          {group.title && (
+            <p className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">
+              {group.title} ·{" "}
+              <Brl
+                value={group.items.reduce(
+                  (sum, s) => sum + (s.nextDate ? s.amount : 0),
+                  0,
+                )}
+              />
+            </p>
+          )}
+          <ul className="mt-1 flex flex-col divide-y divide-border-base">
+            {group.items.map((s) => (
+              <SeriesRow
+                key={s.groupId}
+                series={s}
+                cards={cards}
+                today={today}
+                onUpdate={onUpdateSeries}
+                onEnd={onEndSeries}
+              />
+            ))}
+          </ul>
+        </div>
+      ))}
       {series.length === 0 && !adding && (
         <p className="mt-3 text-sm lowercase text-fg-subtle">
           nada cadastrado ainda.
@@ -288,6 +330,7 @@ function SeriesRow({
   const [name, setName] = useState(s.label);
   const [amount, setAmount] = useState(s.amount);
   const [day, setDay] = useState(String(s.day));
+  const [conjuge, setConjuge] = useState(s.conjuge);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const from = s.nextDate ?? toDateStr(today);
@@ -358,6 +401,7 @@ function SeriesRow({
                 description: name.trim() !== s.label ? name.trim() : undefined,
                 amount: amount !== s.amount ? amount : undefined,
                 day: dayNum !== s.day ? dayNum : undefined,
+                conjuge: conjuge !== s.conjuge ? conjuge : undefined,
               }),
             );
           }}
@@ -381,6 +425,9 @@ function SeriesRow({
               placeholder="dia"
             />
           </div>
+          {s.type === "entrada" && (
+            <OwnerPicker conjuge={conjuge} onChange={setConjuge} />
+          )}
           <p className="text-[11px] lowercase text-fg-subtle">
             vale a partir de {formatDayMonth(from)}. o que já passou não muda.
           </p>
@@ -441,6 +488,7 @@ function AddForm({
   const [day, setDay] = useState(String(today.getDate()));
   const [month, setMonth] = useState(thisMonth);
   const [semFim, setSemFim] = useState(kind !== "cartao");
+  const [conjuge, setConjuge] = useState(false);
   const [count, setCount] = useState(kind === "cartao" ? "3" : "12");
   const [cardId, setCardId] = useState(cards[0]?.id ?? "");
   const [busy, setBusy] = useState(false);
@@ -472,6 +520,7 @@ function AddForm({
         repeatFrequency: "mensal",
         repeatCount: semFim ? undefined : n,
         isIndeterminate: semFim,
+        conjuge: kind === "entrada" ? conjuge : undefined,
       });
       onCancel();
     } catch {
@@ -544,6 +593,9 @@ function AddForm({
             </option>
           ))}
         </select>
+      )}
+      {kind === "entrada" && (
+        <OwnerPicker conjuge={conjuge} onChange={setConjuge} />
       )}
       <div className="flex flex-wrap items-center gap-2 text-xs lowercase">
         <Segment active={semFim} onClick={() => setSemFim(true)}>
@@ -721,5 +773,26 @@ function IconButton({
     >
       {children}
     </button>
+  );
+}
+
+/** De quem é a renda: sua ou da esposa. */
+function OwnerPicker({
+  conjuge,
+  onChange,
+}: {
+  conjuge: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs lowercase">
+      <span className="text-fg-muted">de quem:</span>
+      <Segment active={!conjuge} onClick={() => onChange(false)}>
+        minha
+      </Segment>
+      <Segment active={conjuge} onClick={() => onChange(true)}>
+        da esposa
+      </Segment>
+    </div>
   );
 }

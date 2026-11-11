@@ -33,6 +33,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ gr
             return NextResponse.json({ error: "Dia inválido" }, { status: 400 });
         }
 
+        // De quem é a renda: muda a série inteira, porque não é algo que varia mês a mês.
+        if (typeof body.conjuge === "boolean") {
+            await prisma.transaction.updateMany({
+                where: { userId, groupId, type: "entrada" },
+                data: { category: body.conjuge ? "entrada:conjuge" : "entrada" },
+            });
+        }
+
         const rows = await prisma.transaction.findMany({
             where: { userId, groupId, date: { gte: fromDate(body.from) } },
             select: { id: true, date: true, description: true, amount: true },

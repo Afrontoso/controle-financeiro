@@ -345,6 +345,8 @@ export interface MonthBreakdown {
   label: string;
   /** Renda do mês: entradas que não são resgate de cofre. */
   entradas: number;
+  /** Parte da renda que é da esposa; o resto (entradas − isto) é sua. */
+  rendaConjuge: number;
   /** Dinheiro tirado dos cofres (entradas ligadas a um cofre). Não é renda. */
   resgates: number;
   /** Saídas avulsas e recorrentes. */
@@ -366,12 +368,14 @@ export interface MonthBreakdown {
 export function breakdownMonth(month: MonthEntry): MonthBreakdown {
   let diarios = 0;
   let resgates = 0;
+  let rendaConjuge = 0;
   // Igual ao buildLedger: o lançado conta sempre, e a cota só de hoje em diante
   // (no passado `drain` já é zero).
   for (const day of month.days) {
     diarios += day.totals.gasto_diario + day.drain;
     for (const tx of day.transactions) {
       if (tx.type === "entrada" && tx.vaultId) resgates += tx.amount;
+      else if (tx.type === "entrada" && tx.conjuge) rendaConjuge += tx.amount;
     }
   }
   const { entrada, saida, cartao, investimento } = month.totals;
@@ -384,6 +388,7 @@ export function breakdownMonth(month: MonthEntry): MonthBreakdown {
     month: month.month,
     label: month.label,
     entradas: entrada - resgates,
+    rendaConjuge,
     resgates,
     contas: saida,
     cartao,

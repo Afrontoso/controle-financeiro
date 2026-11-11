@@ -26,7 +26,12 @@ export interface Transaction {
   source?: string;
   /** Marcado como pago. Só registro: não muda o saldo projetado. */
   paid?: boolean;
+  /** Entrada que é renda da esposa, não sua (gravado como category "entrada:conjuge"). */
+  conjuge?: boolean;
 }
+
+/** Valor de `category` que marca a renda da esposa. */
+export const CONJUGE_CATEGORY = "entrada:conjuge";
 
 export type VaultKind = "reserva" | "cofre";
 
