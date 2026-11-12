@@ -472,7 +472,8 @@ export function fixedBills(transactions: Transaction[], today: Date): FixedBill[
   const result: FixedBill[] = [];
   for (const [key, list] of series) {
     const upcoming = list.filter((t) => t.date >= monthStart).sort((a, b) => (a.date < b.date ? -1 : 1));
-    const next = upcoming.find((t) => t.date >= todayStr) ?? upcoming[0];
+    // Sem ocorrência de hoje em diante a série acabou (ou foi encerrada): sai da lista.
+    const next = upcoming.find((t) => t.date >= todayStr);
     if (!next) continue;
     const apto = key.startsWith("apto:");
     const parcelada = !apto && isInstallment(next);
