@@ -24,6 +24,7 @@ import {
   Sun,
   Target,
   Trash2,
+  TrendingUp,
 } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 import { useToast } from "@/components/ui/Toast";
@@ -37,7 +38,7 @@ const PIX_PAYLOAD = process.env.NEXT_PUBLIC_PIX_PAYLOAD ?? "";
 
 interface MenuViewProps {
   /** Telas que no celular não têm aba própria. */
-  onOpenView: (view: "saldos" | "totais" | "orcamentos" | "cartoes") => void;
+  onOpenView: (view: "saldos" | "totais" | "orcamentos" | "cartoes" | "fluxo") => void;
   onOpenIncome: () => void;
   onOpenHorizon: () => void;
   onOpenApartment: () => void;
@@ -103,7 +104,8 @@ export function MenuView({ onOpenView, onOpenIncome, onOpenHorizon, onOpenApartm
         </header>
 
         <section className="overflow-hidden rounded-2xl border border-border-base bg-surface">
-          {/* No desktop estes atalhos já vivem na barra lateral; no celular, as abas de baixo têm fluxo, cartões e contas. */}
+          {/* No desktop estes atalhos já vivem na barra lateral; no celular, as abas de baixo têm visão, contas e fixos. */}
+          <MenuRow icon={TrendingUp} label="fluxo de caixa" hint="entra e sai" onClick={() => onOpenView("fluxo")} className="md:hidden" />
           <MenuRow icon={CreditCard} label="cartões" hint="faturas" onClick={() => onOpenView("cartoes")} className="md:hidden" />
           <MenuRow icon={HandCoins} label="renda" hint="o que entra" onClick={onOpenIncome} className="md:hidden" />
           <MenuRow

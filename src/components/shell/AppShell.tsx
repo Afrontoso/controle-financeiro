@@ -50,7 +50,7 @@ interface NavItem {
 // A ordem é a da barra lateral.
 const NAV_ITEMS: NavItem[] = [
   { key: "visao", label: "visão geral", icon: Gauge, tab: true, short: "visão" },
-  { key: "fluxo", label: "fluxo de caixa", icon: TrendingUp, tab: true, short: "fluxo" },
+  { key: "fluxo", label: "fluxo de caixa", icon: TrendingUp, short: "fluxo" },
   { key: "contas", label: "contas", icon: ReceiptText, tab: true },
   { key: "fixos", label: "fixos", icon: Repeat, tab: true },
   { key: "cartoes", label: "cartões", icon: CreditCard },
