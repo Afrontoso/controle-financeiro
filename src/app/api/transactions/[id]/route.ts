@@ -83,7 +83,7 @@ export async function PATCH(
         if (amount !== undefined) updateData.amount = Number(amount);
         if (type !== undefined) updateData.type = type;
         // Category guarda o tipo e de quem é o lançamento ("saida:conjuge").
-        if (typeof category === "string" && /^[a-z_]+(:conjuge)?$/.test(category)) updateData.category = category;
+        if (typeof category === "string" && /^[a-z_]+(:(conjuge|essencial))*$/.test(category)) updateData.category = category;
 
         if (cardId !== undefined) {
             // Só vincula um cartão que seja do próprio usuário; null desvincula.

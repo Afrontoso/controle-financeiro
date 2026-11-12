@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { categoryFor, isConjugeCategory, type Budget, type Card, type Transaction, type TxType, type Vault } from "@/lib/types";
+import { categoryFor, categoryHas, type Budget, type Card, type Transaction, type TxType, type Vault } from "@/lib/types";
 import { isTxType } from "@/lib/types";
 
 interface RawTransaction {
@@ -52,7 +52,8 @@ function normalizeTransaction(raw: RawTransaction): Transaction {
     vaultId: raw.vaultId ?? undefined,
     source: raw.source ?? undefined,
     paid: Boolean(raw.paidAt),
-    conjuge: isConjugeCategory(raw.category),
+    conjuge: categoryHas(raw.category, "conjuge"),
+    essencial: categoryHas(raw.category, "essencial"),
   };
 }
 
@@ -137,6 +138,8 @@ export interface TransactionPayload {
   isIndeterminate?: boolean;
   /** Responsável é a esposa. */
   conjuge?: boolean;
+  /** Conta essencial (entra no cálculo da reserva). */
+  essencial?: boolean;
 }
 
 function buildBody(payload: TransactionPayload) {
@@ -149,7 +152,7 @@ function buildBody(payload: TransactionPayload) {
     // Meio-dia evita que o fuso empurre o lançamento para o dia vizinho.
     date: new Date(`${payload.date}T12:00:00`).toISOString(),
     type: payload.type,
-    category: categoryFor(payload.type, payload.conjuge),
+    category: categoryFor(payload.type, { conjuge: payload.conjuge, essencial: payload.essencial }),
     // Fora do cartão o vínculo não faz sentido e é sempre desfeito.
     cardId: payload.type === "cartao" ? (payload.cardId ?? null) : null,
     vaultId:
@@ -235,7 +238,7 @@ export function useFinanceData() {
     async (
       groupId: string,
       from: string,
-      changes: { amount?: number; description?: string; day?: number; conjuge?: boolean },
+      changes: { amount?: number; description?: string; day?: number; conjuge?: boolean; essencial?: boolean },
     ) => {
       const res = await fetch(`/api/series/${groupId}`, {
         method: "PATCH",

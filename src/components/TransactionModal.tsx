@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Banknote, CalendarDays, CreditCard, Pencil, PiggyBank, Repeat, Users } from "lucide-react";
+import { Banknote, CalendarDays, CreditCard, Pencil, PiggyBank, Repeat, ShieldCheck, Users } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
 import { TypeBadge } from "@/components/ui/TypeBadge";
@@ -77,6 +77,7 @@ export function TransactionModal({
   const [type, setType] = useState<TxType>(editing?.type ?? defaultType);
   const [description, setDescription] = useState(editing?.description ?? draft?.description ?? "");
   const [conjuge, setConjuge] = useState(editing ? Boolean(editing.conjuge) : defaultConjuge);
+  const [essencial, setEssencial] = useState(Boolean(editing?.essencial));
   const [dateValue, setDateValue] = useState(editing?.date ?? date);
   const [cardId, setCardId] = useState<string | null>(
     () => editing?.cardId ?? cards[0]?.id ?? null,
@@ -110,6 +111,8 @@ export function TransactionModal({
       amount,
       description: description.trim(),
       conjuge,
+      // Só conta e cartão podem ser essenciais.
+      essencial: (type === "saida" || type === "cartao") && essencial,
       cardId: type === "cartao" ? cardId : null,
       vaultId: type === "investimento" || type === "entrada" ? vaultId : null,
       repeatFrequency: repeats ? frequency : undefined,
@@ -244,6 +247,22 @@ export function TransactionModal({
               </div>
             </div>
           </Row>
+
+          {(type === "saida" || type === "cartao") && (
+            <Row icon={ShieldCheck}>
+              <label className="flex flex-1 cursor-pointer items-center justify-between gap-2">
+                <span className="lowercase text-fg-muted">
+                  essencial <span className="text-xs text-fg-subtle">· entra na reserva</span>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={essencial}
+                  onChange={(e) => setEssencial(e.target.checked)}
+                  className="size-4 accent-[var(--entrada)]"
+                />
+              </label>
+            </Row>
+          )}
 
           <Row icon={CalendarDays}>
             <label className="flex flex-1 cursor-pointer items-center justify-between gap-2">

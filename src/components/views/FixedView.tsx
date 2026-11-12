@@ -30,6 +30,7 @@ interface FixedViewProps {
       description?: string;
       day?: number;
       conjuge?: boolean;
+      essencial?: boolean;
     },
   ) => Promise<void>;
   onEndSeries: (groupId: string, from: string) => Promise<void>;
@@ -164,6 +165,12 @@ function SeriesTile({
       {series.length > 0 && (
         <p className="mt-0.5 text-xs lowercase text-fg-muted">
           <Brl value={total} /> por mês
+          {kind !== "entrada" && series.some((x) => x.essencial) && (
+            <>
+              {" · essenciais "}
+              <Brl value={series.filter((x) => x.essencial).reduce((sum, x) => sum + x.amount, 0)} />
+            </>
+          )}
         </p>
       )}
       {(kind === "entrada"
@@ -334,6 +341,7 @@ function SeriesRow({
   const [amount, setAmount] = useState(s.amount);
   const [day, setDay] = useState(String(s.day));
   const [conjuge, setConjuge] = useState(s.conjuge);
+  const [essencial, setEssencial] = useState(s.essencial);
   // Ao encerrar: apagar também a ocorrência deste mês que já passou.
   const [incluirMes, setIncluirMes] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -361,6 +369,11 @@ function SeriesRow({
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium lowercase">{s.label}</p>
           <p className="text-[11px] lowercase text-fg-subtle">
+            {s.essencial && (
+              <span className="mr-1 rounded-full bg-[var(--entrada-soft)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--entrada)]">
+                essencial
+              </span>
+            )}
             {s.conjuge && s.type !== "entrada" && (
               <span className="mr-1 rounded-full bg-[var(--ov-blue-soft)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--ov-blue)]">
                 esposa
@@ -412,6 +425,7 @@ function SeriesRow({
                 amount: amount !== s.amount ? amount : undefined,
                 day: dayNum !== s.day ? dayNum : undefined,
                 conjuge: conjuge !== s.conjuge ? conjuge : undefined,
+                essencial: essencial !== s.essencial ? essencial : undefined,
               }),
             );
           }}
@@ -436,6 +450,7 @@ function SeriesRow({
             />
           </div>
           <OwnerPicker conjuge={conjuge} onChange={setConjuge} />
+          {s.type !== "entrada" && <EssentialPicker essencial={essencial} onChange={setEssencial} />}
           <p className="text-[11px] lowercase text-fg-subtle">
             vale a partir de {formatDayMonth(from)}. o que já passou não muda.
           </p>
@@ -515,6 +530,7 @@ function AddForm({
   const [month, setMonth] = useState(thisMonth);
   const [semFim, setSemFim] = useState(kind !== "cartao");
   const [conjuge, setConjuge] = useState(false);
+  const [essencial, setEssencial] = useState(false);
   const [count, setCount] = useState(kind === "cartao" ? "3" : "12");
   const [cardId, setCardId] = useState(cards[0]?.id ?? "");
   const [busy, setBusy] = useState(false);
@@ -547,6 +563,7 @@ function AddForm({
         repeatCount: semFim ? undefined : n,
         isIndeterminate: semFim,
         conjuge,
+        essencial: kind !== "entrada" ? essencial : undefined,
       });
       onCancel();
     } catch {
@@ -621,6 +638,7 @@ function AddForm({
         </select>
       )}
       <OwnerPicker conjuge={conjuge} onChange={setConjuge} />
+      {kind !== "entrada" && <EssentialPicker essencial={essencial} onChange={setEssencial} />}
       <div className="flex flex-wrap items-center gap-2 text-xs lowercase">
         <Segment active={semFim} onClick={() => setSemFim(true)}>
           {isCard ? "assinatura, todo mês" : "todo mês, sem fim"}
@@ -818,5 +836,21 @@ function OwnerPicker({
         esposa
       </Segment>
     </div>
+  );
+}
+
+/** Essencial: a conta entra no custo de vida que a reserva precisa cobrir. */
+function EssentialPicker({ essencial, onChange }: { essencial: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label className="flex items-center gap-2 text-xs lowercase">
+      <input
+        type="checkbox"
+        checked={essencial}
+        onChange={(e) => onChange(e.target.checked)}
+        className="size-4 accent-[var(--entrada)]"
+      />
+      essencial
+      <span className="text-fg-subtle">· não dá para cortar; entra no cálculo da reserva</span>
+    </label>
   );
 }

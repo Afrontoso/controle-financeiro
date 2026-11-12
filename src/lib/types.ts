@@ -26,19 +26,28 @@ export interface Transaction {
   source?: string;
   /** Marcado como pago. Só registro: não muda o saldo projetado. */
   paid?: boolean;
-  /** Responsável é a esposa, não você (gravado como category "<tipo>:conjuge"). */
+  /** Responsável é a esposa, não você. */
   conjuge?: boolean;
+  /** Conta essencial: entra no custo de vida que a reserva precisa cobrir. */
+  essencial?: boolean;
 }
 
-/** Sufixo de `category` que marca o lançamento como da esposa. */
-const CONJUGE_SUFFIX = ":conjuge";
+/**
+ * `category` guarda o tipo e marcas separadas por ":", sem mudar o banco:
+ * "saida", "saida:conjuge", "saida:conjuge:essencial".
+ */
+export type CategoryTag = "conjuge" | "essencial";
 
-export function categoryFor(type: TxType, conjuge?: boolean): string {
-  return conjuge ? `${type}${CONJUGE_SUFFIX}` : type;
+export function categoryFor(type: TxType, tags: { conjuge?: boolean; essencial?: boolean } = {}): string {
+  return [type, tags.conjuge && "conjuge", tags.essencial && "essencial"].filter(Boolean).join(":");
+}
+
+export function categoryHas(category: string | null | undefined, tag: CategoryTag): boolean {
+  return Boolean(category?.split(":").slice(1).includes(tag));
 }
 
 export function isConjugeCategory(category: string | null | undefined): boolean {
-  return Boolean(category?.endsWith(CONJUGE_SUFFIX));
+  return categoryHas(category, "conjuge");
 }
 
 /** De quem o app está mostrando: os dois, só você ou só a esposa. */

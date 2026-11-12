@@ -110,14 +110,14 @@ export function VaultModal({ editing, asReserve, fixedCost, busy, onClose, onSav
                 <Brl value={metaCusto} className="font-bold" />
               </div>
               <p className="mt-2 text-xs lowercase text-fg-subtle">
-                custo fixo deste mês: <Brl value={fixedCost.recorrentes} /> de saídas recorrentes +{" "}
-                <Brl value={fixedCost.orcamentos} /> de orçamentos. a meta se atualiza sozinha quando
-                esses custos mudam.
+                custo de vida: <Brl value={fixedCost.essenciais} /> de contas essenciais +{" "}
+                <Brl value={fixedCost.orcamentos} /> de orçamentos. marque uma conta como essencial em
+                fixos para ela entrar; a meta se atualiza sozinha.
               </p>
               {fixedCost.total === 0 && (
                 <p className="mt-1 text-xs lowercase text-saida">
-                  nenhuma saída recorrente nem orçamento neste mês: a meta fica zerada até você lançar
-                  as contas fixas (com repetição) ou cadastrar orçamentos.
+                  nenhuma conta essencial nem orçamento: a meta fica zerada até você marcar contas
+                  como essenciais em fixos ou cadastrar orçamentos.
                 </p>
               )}
             </div>

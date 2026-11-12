@@ -34,12 +34,24 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ gr
         }
 
         // De quem é a renda: muda a série inteira, porque não é algo que varia mês a mês.
-        if (typeof body.conjuge === "boolean") {
-            const sample = await prisma.transaction.findFirst({ where: { userId, groupId }, select: { type: true } });
+        // Marcas da série (de quem, essencial): valem para a série inteira.
+        if (typeof body.conjuge === "boolean" || typeof body.essencial === "boolean") {
+            const sample = await prisma.transaction.findFirst({
+                where: { userId, groupId },
+                select: { type: true, category: true },
+            });
             if (sample?.type) {
+                const tags = new Set((sample.category ?? "").split(":").slice(1));
+                for (const tag of ["conjuge", "essencial"] as const) {
+                    if (typeof body[tag] === "boolean") {
+                        if (body[tag]) tags.add(tag);
+                        else tags.delete(tag);
+                    }
+                }
+                const ordered = ["conjuge", "essencial"].filter((t) => tags.has(t));
                 await prisma.transaction.updateMany({
                     where: { userId, groupId },
-                    data: { category: body.conjuge ? `${sample.type}:conjuge` : sample.type },
+                    data: { category: [sample.type, ...ordered].join(":") },
                 });
             }
         }

@@ -31,6 +31,8 @@ export interface Series {
   semFim: boolean;
   /** Renda da esposa. */
   conjuge: boolean;
+  /** Conta essencial: entra no custo de vida da reserva. */
+  essencial: boolean;
   /** Ocorrência deste mês que já passou (antes de hoje), se houver. */
   passadaNoMes: string | null;
 }
@@ -70,6 +72,7 @@ export function activeSeries(transactions: Transaction[], types: TxType[], today
       total: list.length,
       semFim: !list.some((t) => SUFFIX.test(t.description)),
       conjuge: Boolean(ref.conjuge),
+      essencial: Boolean(ref.essencial),
       passadaNoMes: list.find((t) => t.date >= monthStart && t.date < todayStr)?.date ?? null,
     });
   }

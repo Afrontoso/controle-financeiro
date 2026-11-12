@@ -1,3 +1,4 @@
+import { activeSeries } from "@/lib/series";
 import type { Budget, Transaction, Vault } from "@/lib/types";
 import { toDateStr } from "@/lib/format";
 import { monthlyBudgetTotal } from "@/lib/ledger";
@@ -101,26 +102,27 @@ export function sortVaults(balances: VaultBalance[]): VaultBalance[] {
 }
 
 /**
- * Custo de vida fixo de um mês: saídas recorrentes que vencem nele (lançamentos
- * repetidos, como aluguel, internet e as parcelas do apê) mais os orçamentos
- * mensais. Cartão e gastos avulsos ficam de fora porque variam.
+ * Custo de vida fixo: o valor mensal das contas marcadas como essenciais
+ * (água, internet, aluguel...) mais os orçamentos. Não depende do que está
+ * lançado no mês: uma conta essencial conta pelo valor da próxima cobrança.
  */
 export interface FixedCost {
   total: number;
-  recorrentes: number;
+  /** Soma das contas essenciais (valor mensal de cada uma). */
+  essenciais: number;
   orcamentos: number;
-  /** YYYY-MM do mês considerado. */
-  mes: string;
+  /** As contas que entram, para mostrar de onde vem o número. */
+  itens: { label: string; amount: number }[];
 }
 
 export function fixedLivingCost(transactions: Transaction[], budgets: Budget[], today: Date): FixedCost {
-  const mes = toDateStr(today).slice(0, 7);
-  let recorrentes = 0;
-  for (const tx of transactions) {
-    if (tx.type === "saida" && tx.groupId && tx.date.startsWith(mes)) recorrentes += tx.amount;
-  }
+  const itens = activeSeries(transactions, ["saida", "cartao"], today)
+    .filter((s) => s.essencial && s.nextDate !== null)
+    .map((s) => ({ label: s.label, amount: s.amount }))
+    .sort((a, b) => b.amount - a.amount);
+  const essenciais = itens.reduce((sum, i) => sum + i.amount, 0);
   const orcamentos = monthlyBudgetTotal(budgets);
-  return { total: recorrentes + orcamentos, recorrentes, orcamentos, mes };
+  return { total: essenciais + orcamentos, essenciais, orcamentos, itens };
 }
 
 /** Meses de custo de vida que costumam ser recomendados para a reserva. */
