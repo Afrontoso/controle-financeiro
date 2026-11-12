@@ -783,7 +783,7 @@ function CartoesCard({
           ? `fatura de ${monthLongLabel(bill.year, bill.month).split(" ")[0]} · ${billStatus(bill, todayStr).label}`
           : undefined
       }
-      info="a fatura de cada cartão pelo mês em que vence e as duas seguintes. conta o que já está lançado: parcelas futuras aparecem, compras que você ainda vai fazer não. o limite livre desconta tudo o que não foi marcado como pago neste cartão, parcelas futuras incluídas."
+      info="a fatura de cada cartão pelo mês em que vence e as duas seguintes. conta o que já está lançado: parcelas futuras aparecem, compras que você ainda vai fazer não. o limite livre desconta o que já foi cobrado e ainda não venceu; parcelas dos próximos meses só contam quando forem cobradas."
       illustration="credit_card"
     >
       <div className="mt-6 flex items-end justify-between gap-3">

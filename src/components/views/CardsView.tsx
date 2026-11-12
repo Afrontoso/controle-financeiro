@@ -105,7 +105,7 @@ function CardPanel({
       <Tile
         title="cartão"
         subtitle={usage?.limite ? undefined : "limite não informado"}
-        info="o limite livre desconta tudo o que não foi marcado como pago neste cartão, parcelas futuras incluídas, como o banco conta. neste app a compra cai no primeiro vencimento igual ou posterior ao dia em que foi feita."
+        info="o limite livre desconta o que já foi cobrado no cartão e ainda não venceu. parcelas e assinaturas dos próximos meses só contam quando forem cobradas. neste app a compra cai no primeiro vencimento igual ou posterior ao dia em que foi feita."
       >
         <div className="absolute top-4 right-4 flex gap-1">
           <button
@@ -147,7 +147,7 @@ function CardPanel({
           <Stat
             label="em uso"
             value={<Brl value={usage?.emAberto ?? 0} />}
-            hint="fatura aberta + parcelas que ainda vão cair"
+            hint="o que já foi cobrado e ainda não venceu"
           />
           <Stat
             label="vence em"

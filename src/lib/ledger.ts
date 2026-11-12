@@ -545,9 +545,9 @@ export function cardForecasts(months: MonthEntry[], cards: Card[]): CardForecast
 }
 
 /**
- * Quanto do limite de cada cartão está comprometido: compras ainda não pagas
- * cuja fatura vence do mês corrente em diante (parcelas futuras incluídas,
- * como o banco conta). Faturas de meses anteriores são consideradas pagas.
+ * Quanto do limite de cada cartão está em uso: compras feitas até hoje, não
+ * marcadas como pagas, numa fatura que ainda não venceu. Parcelas e
+ * assinaturas de meses seguintes ficam de fora até serem cobradas.
  */
 export interface CardLimitUsage {
   card: Card;
@@ -559,12 +559,16 @@ export interface CardLimitUsage {
 
 export function cardLimitUsage(transactions: Transaction[], cards: Card[], today: Date): CardLimitUsage[] {
   const cardIndex = indexCards(cards);
-  const monthStart = toDateStr(new Date(today.getFullYear(), today.getMonth(), 1));
+  const todayStr = toDateStr(today);
   const emAberto = new Map<string, number>();
 
   for (const tx of transactions) {
     if (tx.type !== "cartao" || !tx.cardId || tx.paid) continue;
-    if (chargeDateOf(tx, cardIndex) < monthStart) continue;
+    // Só o que já foi cobrado no cartão: parcelas e assinaturas de meses
+    // futuros ainda não existem na fatura e não ocupam o limite.
+    if (tx.date > todayStr) continue;
+    // Fatura que já venceu conta como paga.
+    if (chargeDateOf(tx, cardIndex) < todayStr) continue;
     emAberto.set(tx.cardId, (emAberto.get(tx.cardId) ?? 0) + tx.amount);
   }
 
