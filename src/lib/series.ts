@@ -31,6 +31,8 @@ export interface Series {
   semFim: boolean;
   /** Renda da esposa. */
   conjuge: boolean;
+  /** Ocorrência deste mês que já passou (antes de hoje), se houver. */
+  passadaNoMes: string | null;
 }
 
 /**
@@ -68,6 +70,7 @@ export function activeSeries(transactions: Transaction[], types: TxType[], today
       total: list.length,
       semFim: !list.some((t) => SUFFIX.test(t.description)),
       conjuge: Boolean(ref.conjuge),
+      passadaNoMes: list.find((t) => t.date >= monthStart && t.date < todayStr)?.date ?? null,
     });
   }
   return result.sort((a, b) => a.day - b.day || b.amount - a.amount);

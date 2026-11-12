@@ -106,7 +106,7 @@ export function FixedView(props: FixedViewProps) {
           subtitle="salário, bolsa, o que entra todo mês"
           addLabel="nova renda"
           info="entradas que se repetem. com número de meses (uma bolsa, por exemplo) elas acabam sozinhas; sem fim, repetem até você encerrar."
-          series={rendas}
+          series={rendas.filter((x) => x.nextDate !== null)}
           {...props}
         />
 
@@ -116,11 +116,14 @@ export function FixedView(props: FixedViewProps) {
           subtitle="aluguel, internet, mercado do mês"
           addLabel="nova conta"
           info="saídas que se repetem: saem do saldo no dia marcado. o que o plano do apartamento gera aparece na tela do apartamento."
-          series={saidas}
+          series={saidas.filter((x) => x.nextDate !== null)}
           {...props}
         />
 
-        <CardsTile {...props} series={cartao} />
+        <CardsTile
+          {...props}
+          series={cartao.filter((x) => x.nextDate !== null)}
+        />
       </div>
     </div>
   );
@@ -331,6 +334,8 @@ function SeriesRow({
   const [amount, setAmount] = useState(s.amount);
   const [day, setDay] = useState(String(s.day));
   const [conjuge, setConjuge] = useState(s.conjuge);
+  // Ao encerrar: apagar também a ocorrência deste mês que já passou.
+  const [incluirMes, setIncluirMes] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const from = s.nextDate ?? toDateStr(today);
@@ -456,13 +461,31 @@ function SeriesRow({
               : `as ${s.restantes} parcelas que faltam somem`}
             ; o que já passou fica.
           </p>
+          {s.passadaNoMes && (
+            <label className="flex items-center gap-2 text-xs lowercase">
+              <input
+                type="checkbox"
+                checked={incluirMes}
+                onChange={(e) => setIncluirMes(e.target.checked)}
+                className="size-4 accent-[var(--saida)]"
+              />
+              apagar também a deste mês ({formatDayMonth(s.passadaNoMes)})
+            </label>
+          )}
           <FormActions
             busy={busy}
             error={error}
             onCancel={() => setMode("ver")}
             submitLabel="encerrar"
             danger
-            onSubmit={() => void run(() => onEnd(s.groupId, from))}
+            onSubmit={() =>
+              void run(() =>
+                onEnd(
+                  s.groupId,
+                  incluirMes && s.passadaNoMes ? s.passadaNoMes : from,
+                ),
+              )
+            }
           />
         </div>
       )}
