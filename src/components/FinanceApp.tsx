@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { CalendarDays } from "lucide-react";
 import { AppShell, type ViewKey } from "@/components/shell/AppShell";
 import { BalancesView } from "@/components/views/BalancesView";
 import { HorizonView } from "@/components/views/HorizonView";
@@ -639,6 +640,17 @@ export function FinanceApp() {
         ) : view === "contas" ? (
           <PeriodPicker start={billsMonth} span={1} onChange={setBillsMonth} />
         ) : null}
+        {/* No celular o "ir pra hoje" fica aqui em cima; no desktop está na barra lateral. */}
+        {(view === "saldos" || view === "horizonte" || view === "totais" || view === "visao" || view === "contas") && (
+          <button
+            type="button"
+            onClick={goToToday}
+            className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-surface-3 px-3 text-xs font-medium lowercase text-fg transition-colors active:bg-surface-2 md:hidden"
+          >
+            <CalendarDays size={15} />
+            hoje
+          </button>
+        )}
       </ViewHeader>
 
       {view === "visao" && (
