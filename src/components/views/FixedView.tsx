@@ -101,15 +101,24 @@ export function FixedView(props: FixedViewProps) {
           </div>
         </Tile>
 
-        <SeriesTile
-          kind="entrada"
-          title="rendas"
-          subtitle="salário, bolsa, o que entra todo mês"
-          addLabel="nova renda"
-          info="entradas que se repetem. com número de meses (uma bolsa, por exemplo) elas acabam sozinhas; sem fim, repetem até você encerrar."
-          series={rendas.filter((x) => x.nextDate !== null)}
-          {...props}
-        />
+        {/* Duas colunas independentes: o cartão sobe logo abaixo das rendas em vez
+            de esperar a lista de contas fixas, que costuma ser bem maior. */}
+        <div className="flex min-w-0 flex-col gap-3 md:gap-4">
+          <SeriesTile
+            kind="entrada"
+            title="rendas"
+            subtitle="salário, bolsa, o que entra todo mês"
+            addLabel="nova renda"
+            info="entradas que se repetem. com número de meses (uma bolsa, por exemplo) elas acabam sozinhas; sem fim, repetem até você encerrar."
+            series={rendas.filter((x) => x.nextDate !== null)}
+            {...props}
+          />
+
+          <CardsTile
+            {...props}
+            series={cartao.filter((x) => x.nextDate !== null)}
+          />
+        </div>
 
         <SeriesTile
           kind="saida"
@@ -119,11 +128,6 @@ export function FixedView(props: FixedViewProps) {
           info="saídas que se repetem: saem do saldo no dia marcado. o que o plano do apartamento gera aparece na tela do apartamento."
           series={saidas.filter((x) => x.nextDate !== null)}
           {...props}
-        />
-
-        <CardsTile
-          {...props}
-          series={cartao.filter((x) => x.nextDate !== null)}
         />
       </div>
     </div>
@@ -168,7 +172,11 @@ function SeriesTile({
           {kind !== "entrada" && series.some((x) => x.essencial) && (
             <>
               {" · essenciais "}
-              <Brl value={series.filter((x) => x.essencial).reduce((sum, x) => sum + x.amount, 0)} />
+              <Brl
+                value={series
+                  .filter((x) => x.essencial)
+                  .reduce((sum, x) => sum + x.amount, 0)}
+              />
             </>
           )}
         </p>
@@ -450,7 +458,9 @@ function SeriesRow({
             />
           </div>
           <OwnerPicker conjuge={conjuge} onChange={setConjuge} />
-          {s.type !== "entrada" && <EssentialPicker essencial={essencial} onChange={setEssencial} />}
+          {s.type !== "entrada" && (
+            <EssentialPicker essencial={essencial} onChange={setEssencial} />
+          )}
           <p className="text-[11px] lowercase text-fg-subtle">
             vale a partir de {formatDayMonth(from)}. o que já passou não muda.
           </p>
@@ -638,7 +648,9 @@ function AddForm({
         </select>
       )}
       <OwnerPicker conjuge={conjuge} onChange={setConjuge} />
-      {kind !== "entrada" && <EssentialPicker essencial={essencial} onChange={setEssencial} />}
+      {kind !== "entrada" && (
+        <EssentialPicker essencial={essencial} onChange={setEssencial} />
+      )}
       <div className="flex flex-wrap items-center gap-2 text-xs lowercase">
         <Segment active={semFim} onClick={() => setSemFim(true)}>
           {isCard ? "assinatura, todo mês" : "todo mês, sem fim"}
@@ -840,7 +852,13 @@ function OwnerPicker({
 }
 
 /** Essencial: a conta entra no custo de vida que a reserva precisa cobrir. */
-function EssentialPicker({ essencial, onChange }: { essencial: boolean; onChange: (v: boolean) => void }) {
+function EssentialPicker({
+  essencial,
+  onChange,
+}: {
+  essencial: boolean;
+  onChange: (v: boolean) => void;
+}) {
   return (
     <label className="flex items-center gap-2 text-xs lowercase">
       <input
@@ -850,7 +868,9 @@ function EssentialPicker({ essencial, onChange }: { essencial: boolean; onChange
         className="size-4 accent-[var(--entrada)]"
       />
       essencial
-      <span className="text-fg-subtle">· não dá para cortar; entra no cálculo da reserva</span>
+      <span className="text-fg-subtle">
+        · não dá para cortar; entra no cálculo da reserva
+      </span>
     </label>
   );
 }
