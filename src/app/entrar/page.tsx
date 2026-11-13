@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { LoginScreen } from "@/components/LoginScreen";
+import { LoadingScreen } from "@/components/ui/LoadingScreen";
 
 export default function EntrarPage() {
   const { status } = useSession();
@@ -15,11 +16,7 @@ export default function EntrarPage() {
   }, [status, router]);
 
   if (status === "loading" || status === "authenticated") {
-    return (
-      <main className="grid min-h-[100dvh] place-items-center bg-bg text-sm lowercase text-fg-muted">
-        um instante...
-      </main>
-    );
+    return <LoadingScreen label="um instante..." />;
   }
 
   return <LoginScreen />;

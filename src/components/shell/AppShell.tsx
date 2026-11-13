@@ -20,6 +20,7 @@ import {
   Target,
   Wallet,
 } from "lucide-react";
+import { BrandMark } from "@/components/ui/BrandMark";
 
 export type ViewKey =
   | "visao"
@@ -141,12 +142,7 @@ function DesktopSidebar({
       }`}
     >
       <div className={`flex items-center gap-3 px-5 py-6 ${collapsed ? "justify-center px-0" : ""}`}>
-        <span
-          className="grid size-9 shrink-0 place-items-center rounded-xl text-white"
-          style={{ background: "linear-gradient(135deg, #f97316, #ea580c)" }}
-        >
-          <Wallet size={18} />
-        </span>
+        <BrandMark size={36} />
         {!collapsed && <span className="truncate text-sm font-semibold lowercase">controle</span>}
       </div>
 

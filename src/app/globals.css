@@ -312,11 +312,57 @@
   animation: toast-in 0.26s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* Ícone do carregamento: as barras sobem em sequência e o ícone "respira". */
+@keyframes loader-bar {
+  0%,
+  100% {
+    transform: scaleY(0.25);
+  }
+  45%,
+  60% {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes loader-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.04);
+  }
+}
+
+.loader-mark {
+  animation: loader-breathe 1.6s ease-in-out infinite;
+}
+.loader-bar {
+  transform-box: fill-box;
+  transform-origin: bottom;
+  animation: loader-bar 1.2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+.loader-bar:nth-of-type(2) {
+  animation-delay: 0s;
+}
+.loader-bar:nth-of-type(3) {
+  animation-delay: 0.15s;
+}
+.loader-bar:nth-of-type(4) {
+  animation-delay: 0.3s;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+
+  /* Animação infinita com duração quase zero pisca; melhor deixar parado. */
+  .loader-mark,
+  .loader-bar {
+    animation: none !important;
   }
 }
