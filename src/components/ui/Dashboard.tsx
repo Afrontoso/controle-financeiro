@@ -155,6 +155,37 @@ export function Stat({
 }
 
 /** O cartão de crédito desenhado. */
+/** Visual do cartão pelo banco, achado pelo nome que você deu. */
+interface CardBrand {
+  background: string;
+  /** Marca do banco no canto, no lugar do nome. */
+  logo: React.ReactNode;
+  mastercard?: boolean;
+}
+
+function cardBrand(name: string): CardBrand | null {
+  const n = name.toLowerCase();
+  if (n.includes("nubank") || /\bnu\b/.test(n)) {
+    return {
+      background: "linear-gradient(135deg, #9b3ee6 0%, #820ad1 55%, #6a07ad 100%)",
+      logo: <span className="text-3xl leading-none font-bold tracking-tighter">nu</span>,
+      mastercard: true,
+    };
+  }
+  return null;
+}
+
+function MastercardMark() {
+  // Dois círculos de raio 14 com centros a 16 de distância; o meio é a interseção.
+  return (
+    <svg viewBox="0 0 46 28" className="h-7 w-[46px] shrink-0" aria-hidden>
+      <circle cx="14" cy="14" r="14" fill="#eb001b" />
+      <circle cx="32" cy="14" r="14" fill="#f79e1b" />
+      <path d="M23 3.27a14 14 0 0 1 0 21.46a14 14 0 0 1 0-21.46z" fill="#ff5f00" />
+    </svg>
+  );
+}
+
 export function CardArt({
   name,
   usadoPct,
@@ -169,20 +200,39 @@ export function CardArt({
   livre: number | null;
   className?: string;
 }) {
+  const brand = cardBrand(name);
   return (
       <div
         className={`flex aspect-[1.6/1] w-full max-w-72 flex-col justify-between rounded-2xl p-4 text-white shadow-lg ${className}`}
-        style={{ background: "linear-gradient(135deg, var(--ov-card-from), var(--ov-card-to))" }}
+        style={{ background: brand?.background ?? "linear-gradient(135deg, var(--ov-card-from), var(--ov-card-to))" }}
       >
         <div className="flex items-start justify-between gap-2">
-          <span className="truncate text-sm font-semibold lowercase">{name}</span>
-          {usadoPct !== null && (
-            <span className="shrink-0 rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-semibold tabular">
-              {formatPercent(usadoPct * 100, 0)} usado
-            </span>
+          {brand ? (
+            <span aria-label={name}>{brand.logo}</span>
+          ) : (
+            <span className="truncate text-sm font-semibold lowercase">{name}</span>
+          )}
+          {brand?.mastercard ? (
+            <MastercardMark />
+          ) : (
+            usadoPct !== null && (
+              <span className="shrink-0 rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-semibold tabular">
+                {formatPercent(usadoPct * 100, 0)} usado
+              </span>
+            )
           )}
         </div>
-        <span className="h-6 w-8 rounded-md bg-gradient-to-br from-zinc-200 to-zinc-400 opacity-80" aria-hidden />
+        {brand ? (
+          usadoPct !== null ? (
+            <span className="self-start rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-semibold tabular">
+              {formatPercent(usadoPct * 100, 0)} usado
+            </span>
+          ) : (
+            <span />
+          )
+        ) : (
+          <span className="h-6 w-8 rounded-md bg-gradient-to-br from-zinc-200 to-zinc-400 opacity-80" aria-hidden />
+        )}
         <div>
           <div className="flex items-end justify-between gap-2 text-[10px] uppercase tracking-wider text-white/60">
             <span>
