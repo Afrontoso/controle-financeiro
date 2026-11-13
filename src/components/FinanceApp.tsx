@@ -48,6 +48,7 @@ import {
   type YearMonth,
 } from "@/lib/ledger";
 import { fromDateStr, toDateStr } from "@/lib/format";
+import { LoadingScreen } from "@/components/ui/LoadingScreen";
 import { matchesPerson, type Budget, type Card, type PersonFilter, type Transaction, type TxType, type Vault } from "@/lib/types";
 
 /** Meses exibidos de uma vez em saldos e horizonte. */
@@ -622,11 +623,7 @@ export function FinanceApp() {
   /* ---------------- render ---------------- */
 
   if (loading) {
-    return (
-      <main className="grid min-h-[100dvh] place-items-center bg-bg text-sm lowercase text-fg-muted">
-        carregando seu fluxo de caixa...
-      </main>
-    );
+    return <LoadingScreen label="carregando seu fluxo de caixa..." />;
   }
 
   return (

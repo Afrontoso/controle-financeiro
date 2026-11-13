@@ -15,6 +15,7 @@ import {
   TrendingDown,
   Wallet,
 } from "lucide-react";
+import { BrandMark } from "@/components/ui/BrandMark";
 import { useTheme } from "@/components/ThemeProvider";
 import { heatTone } from "@/lib/format";
 import { TypeBadge } from "@/components/ui/TypeBadge";
@@ -29,12 +30,7 @@ export function LandingPage() {
       <header className="sticky top-0 z-50 border-b border-border-base bg-surface/85 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 md:px-8">
           <span className="flex items-center gap-2.5">
-            <span
-              className="grid size-9 place-items-center rounded-xl text-white"
-              style={{ background: "linear-gradient(135deg, #f97316, #ea580c)" }}
-            >
-              <Wallet size={18} />
-            </span>
+            <BrandMark size={36} />
             <span className="font-semibold lowercase">controle financeiro</span>
           </span>
 

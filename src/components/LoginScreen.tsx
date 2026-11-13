@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { signIn } from "next-auth/react";
-import { ArrowLeft, Wallet } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
+import { BrandMark } from "@/components/ui/BrandMark";
 
 export function LoginScreen() {
   return (
@@ -14,12 +15,7 @@ export function LoginScreen() {
         <ArrowLeft size={16} /> voltar
       </Link>
 
-      <span
-        className="mb-6 grid size-14 place-items-center rounded-2xl text-white shadow-e2"
-        style={{ background: "linear-gradient(135deg, #f97316, #ea580c)" }}
-      >
-        <Wallet size={26} />
-      </span>
+      <BrandMark size={56} className="mb-6 drop-shadow-md" />
 
       <h1 className="text-3xl font-semibold lowercase tracking-tight">controle financeiro</h1>
       <p className="mt-2 mb-8 max-w-xs text-center text-sm text-fg-muted">

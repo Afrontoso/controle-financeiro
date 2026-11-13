@@ -3,16 +3,13 @@
 import { useSession } from "next-auth/react";
 import { FinanceApp } from "@/components/FinanceApp";
 import { LandingPage } from "@/components/landing/LandingPage";
+import { LoadingScreen } from "@/components/ui/LoadingScreen";
 
 export default function Home() {
   const { status } = useSession();
 
   if (status === "loading") {
-    return (
-      <main className="grid min-h-[100dvh] place-items-center bg-bg text-sm lowercase text-fg-muted">
-        um instante...
-      </main>
-    );
+    return <LoadingScreen label="um instante..." />;
   }
 
   // Visitante vê a apresentação do produto; quem tem sessão cai direto no app —
