@@ -9,7 +9,7 @@ export default function Home() {
   const { status } = useSession();
 
   if (status === "loading") {
-    return <LoadingScreen label="um instante..." />;
+    return <LoadingScreen />;
   }
 
   // Visitante vê a apresentação do produto; quem tem sessão cai direto no app —

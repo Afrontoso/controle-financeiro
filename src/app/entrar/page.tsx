@@ -16,7 +16,7 @@ export default function EntrarPage() {
   }, [status, router]);
 
   if (status === "loading" || status === "authenticated") {
-    return <LoadingScreen label="um instante..." />;
+    return <LoadingScreen />;
   }
 
   return <LoginScreen />;

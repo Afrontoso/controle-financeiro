@@ -623,7 +623,7 @@ export function FinanceApp() {
   /* ---------------- render ---------------- */
 
   if (loading) {
-    return <LoadingScreen label="carregando seu fluxo de caixa..." />;
+    return <LoadingScreen />;
   }
 
   return (
