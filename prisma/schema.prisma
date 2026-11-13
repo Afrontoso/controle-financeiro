@@ -194,6 +194,8 @@ model User {
   email         String?   @unique
   emailVerified DateTime?
   image         String?
+  /// Preferências de tela (apartamento ligado, ordem da barra lateral).
+  settings      Json?
   accounts      Account[]
   sessions      Session[]
   

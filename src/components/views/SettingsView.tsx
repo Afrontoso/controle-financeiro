@@ -84,7 +84,7 @@ export function SettingsView({ apartamento, onApartamentoChange, order, onOrderC
             })}
           </ul>
           <p className="px-1 pt-2 text-xs lowercase text-fg-subtle">
-            vale para a barra do computador. as preferências ficam guardadas neste navegador.
+            vale para a barra do computador. fica salvo na sua conta, em qualquer aparelho.
           </p>
         </section>
       </div>
