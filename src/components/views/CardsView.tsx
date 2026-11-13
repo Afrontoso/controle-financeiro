@@ -4,7 +4,10 @@ import { useMemo, useState } from "react";
 import { Check, Pencil, Plus, Trash2 } from "lucide-react";
 import { formatDayMonth, formatPercent, monthLongLabel, fromDateStr } from "@/lib/format";
 import type { CardLimitUsage } from "@/lib/ledger";
-import { billTimeline, openBill, subscriptions, type TimelineBill } from "@/lib/insights";
+import { billTimeline, openBill, type TimelineBill } from "@/lib/insights";
+import { activeSeries } from "@/lib/series";
+import { CardSeriesTile } from "@/components/views/FixedView";
+import type { TransactionPayload } from "@/hooks/useFinanceData";
 import { Brl } from "@/components/ui/Brl";
 import { BigMoney, CardArt, Stat, Tile } from "@/components/ui/Dashboard";
 import type { Card, Transaction } from "@/lib/types";
@@ -18,9 +21,24 @@ interface CardsViewProps {
   onEdit: (card: Card) => void;
   onDelete: (card: Card) => void;
   onSelectDay: (dateStr: string) => void;
+  onCreateTx: (payload: TransactionPayload) => Promise<void>;
+  onUpdateSeries: React.ComponentProps<typeof CardSeriesTile>["onUpdateSeries"];
+  onEndSeries: (groupId: string, from: string) => Promise<void>;
 }
 
-export function CardsView({ cards, usage, transactions, today, onCreate, onEdit, onDelete, onSelectDay }: CardsViewProps) {
+export function CardsView({
+  cards,
+  usage,
+  transactions,
+  today,
+  onCreate,
+  onEdit,
+  onDelete,
+  onSelectDay,
+  onCreateTx,
+  onUpdateSeries,
+  onEndSeries,
+}: CardsViewProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const card = cards.find((c) => c.id === selectedId) ?? cards[0] ?? null;
 
@@ -61,6 +79,19 @@ export function CardsView({ cards, usage, transactions, today, onCreate, onEdit,
           onEdit={() => onEdit(card)}
           onDelete={() => onDelete(card)}
           onSelectDay={onSelectDay}
+          seriesTile={
+            <CardSeriesTile
+              card={card}
+              cards={cards}
+              series={activeSeries(transactions, ["cartao"], today).filter(
+                (x) => x.cardId === card.id && x.nextDate !== null,
+              )}
+              today={today}
+              onCreate={onCreateTx}
+              onUpdateSeries={onUpdateSeries}
+              onEndSeries={onEndSeries}
+            />
+          }
         />
       ) : (
         <div className="rounded-3xl border border-dashed border-border-strong px-6 py-12 text-center">
@@ -83,6 +114,7 @@ function CardPanel({
   onEdit,
   onDelete,
   onSelectDay,
+  seriesTile,
 }: {
   card: Card;
   usage: CardLimitUsage | null;
@@ -91,10 +123,11 @@ function CardPanel({
   onEdit: () => void;
   onDelete: () => void;
   onSelectDay: (dateStr: string) => void;
+  /** Parcelas e assinaturas, editáveis. */
+  seriesTile: React.ReactNode;
 }) {
   const bill = useMemo(() => openBill(transactions, card, today), [transactions, card, today]);
   const timeline = useMemo(() => billTimeline(transactions, card, today), [transactions, card, today]);
-  const subs = useMemo(() => subscriptions(transactions, card, today), [transactions, card, today]);
   const usadoPct = usage?.limite ? Math.min(Math.max(usage.emAberto / usage.limite, 0), 1) : null;
   const due = fromDateStr(bill.dueDate);
   const mesFatura = monthLongLabel(due.getFullYear(), due.getMonth()).split(" ")[0];
@@ -232,42 +265,7 @@ function CardPanel({
         </ul>
       </Tile>
 
-      <Tile
-        title="assinaturas"
-        subtitle={
-          subs.length > 0
-            ? undefined
-            : "nenhuma cobrança que se repete"
-        }
-        info="o que cai todo mês neste cartão: repetições lançadas no app (sem as parceladas) e compras do banco que aparecem em meses diferentes com valor parecido."
-      >
-        {subs.length > 0 && (
-          <p className="mt-0.5 text-xs lowercase text-fg-muted">
-            ~<Brl value={subs.reduce((sum, s) => sum + s.amount, 0)} /> por mês, já dentro da fatura
-          </p>
-        )}
-        <ul className="mt-4 flex flex-col divide-y divide-border-base">
-          {subs.map((s) => (
-            <li key={s.key} className="flex items-center justify-between gap-3 py-2.5">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium lowercase">{s.label}</p>
-                <p className="text-[11px] lowercase text-fg-subtle">
-                  todo dia {s.day}
-                  {s.origem === "banco" && " · achada no banco"}
-                </p>
-              </div>
-              <span className="shrink-0 text-sm font-semibold tabular">
-                <Brl value={s.amount} />
-              </span>
-            </li>
-          ))}
-        </ul>
-        {subs.length === 0 && (
-          <p className="mt-4 text-sm lowercase text-fg-subtle">
-            quando uma compra aparecer em meses seguidos com o mesmo valor, ela entra aqui.
-          </p>
-        )}
-      </Tile>
+      {seriesTile}
     </div>
   );
 }

@@ -701,15 +701,6 @@ export function FinanceApp() {
           onCreate={finance.createTransaction}
           onUpdateSeries={finance.updateSeries}
           onEndSeries={finance.endSeries}
-          onCreateCard={() => {
-            setEditingCard(null);
-            setCardModalOpen(true);
-          }}
-          onEditCard={(card) => {
-            setEditingCard(card);
-            setCardModalOpen(true);
-          }}
-          onDeleteCard={setDeletingCard}
         />
       )}
 
@@ -839,6 +830,9 @@ export function FinanceApp() {
             setCardModalOpen(true);
           }}
           onDelete={setDeletingCard}
+          onCreateTx={finance.createTransaction}
+          onUpdateSeries={finance.updateSeries}
+          onEndSeries={finance.endSeries}
         />
       )}
 

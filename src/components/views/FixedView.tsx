@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, CreditCard, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
 import {
   formatCurrency,
   formatDayMonth,
@@ -34,9 +34,6 @@ interface FixedViewProps {
     },
   ) => Promise<void>;
   onEndSeries: (groupId: string, from: string) => Promise<void>;
-  onCreateCard: () => void;
-  onEditCard: (card: Card) => void;
-  onDeleteCard: (card: Card) => void;
 }
 
 /**
@@ -68,7 +65,7 @@ export function FixedView(props: FixedViewProps) {
         <Tile
           title="o mês no automático"
           subtitle="só o que é fixo, neste mês"
-          info="soma do que está cadastrado aqui e cai neste mês: rendas, contas fixas e compras no cartão que se repetem (pelo dia da compra). o que sobra é o espaço para o dia a dia, os gastos avulsos e o que você quer guardar."
+          info="soma do que se repete e cai neste mês: rendas e contas fixas daqui, e as parcelas e assinaturas que ficam na aba de cada cartão (pelo dia da compra). o que sobra é o espaço para o dia a dia, os gastos avulsos e o que você quer guardar."
           illustration="purse"
           className="lg:col-span-2"
         >
@@ -101,24 +98,15 @@ export function FixedView(props: FixedViewProps) {
           </div>
         </Tile>
 
-        {/* Duas colunas independentes: o cartão sobe logo abaixo das rendas em vez
-            de esperar a lista de contas fixas, que costuma ser bem maior. */}
-        <div className="flex min-w-0 flex-col gap-3 md:gap-4">
-          <SeriesTile
-            kind="entrada"
-            title="rendas"
-            subtitle="salário, bolsa, o que entra todo mês"
-            addLabel="nova renda"
-            info="entradas que se repetem. com número de meses (uma bolsa, por exemplo) elas acabam sozinhas; sem fim, repetem até você encerrar."
-            series={rendas.filter((x) => x.nextDate !== null)}
-            {...props}
-          />
-
-          <CardsTile
-            {...props}
-            series={cartao.filter((x) => x.nextDate !== null)}
-          />
-        </div>
+        <SeriesTile
+          kind="entrada"
+          title="rendas"
+          subtitle="salário, bolsa, o que entra todo mês"
+          addLabel="nova renda"
+          info="entradas que se repetem. com número de meses (uma bolsa, por exemplo) elas acabam sozinhas; sem fim, repetem até você encerrar."
+          series={rendas.filter((x) => x.nextDate !== null)}
+          {...props}
+        />
 
         <SeriesTile
           kind="saida"
@@ -237,93 +225,69 @@ function SeriesTile({
   );
 }
 
-function CardsTile(props: FixedViewProps & { series: Series[] }) {
-  const { cards, series, onCreateCard, onEditCard, onDeleteCard } = props;
+interface CardSeriesTileProps {
+  /** O cartão da tela; vem primeiro na lista do formulário. */
+  card: Card;
+  cards: Card[];
+  series: Series[];
+  today: Date;
+  onCreate: FixedViewProps["onCreate"];
+  onUpdateSeries: FixedViewProps["onUpdateSeries"];
+  onEndSeries: FixedViewProps["onEndSeries"];
+}
+
+/** Parcelas e assinaturas de um cartão, editáveis como as outras séries. */
+export function CardSeriesTile({
+  card,
+  cards,
+  series,
+  today,
+  onCreate,
+  onUpdateSeries,
+  onEndSeries,
+}: CardSeriesTileProps) {
   const [adding, setAdding] = useState(false);
+  const ordered = [card, ...cards.filter((c) => c.id !== card.id)];
+  const total = series.reduce((sum, s) => sum + s.amount, 0);
 
   return (
     <Tile
-      title="cartão"
-      subtitle="seus cartões e o que se repete neles"
-      info="compras parceladas e assinaturas no cartão: cada parcela cai na fatura do vencimento seguinte à compra. compras avulsas no cartão você lança pelo botão de adicionar."
-      illustration="credit_card"
+      title="parcelas e assinaturas"
+      subtitle={
+        series.length > 0 ? undefined : "nada que se repete neste cartão"
+      }
+      info="compras parceladas e assinaturas: cada parcela cai na fatura do vencimento seguinte à compra. mudar ou encerrar vale daqui pra frente. compras avulsas você lança pelo botão de adicionar."
     >
-      <ul className="mt-3 flex flex-col gap-2">
-        {cards.map((card) => (
-          <li
-            key={card.id}
-            className="flex items-center gap-3 rounded-xl bg-surface-2 px-3 py-2.5"
-          >
-            <CreditCard size={18} className="shrink-0 text-fg-muted" />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold lowercase">
-                {card.name}
-              </p>
-              <p className="text-[11px] lowercase text-fg-subtle">
-                vence dia {card.dueDay}
-                {card.limit ? (
-                  <>
-                    {" · limite "}
-                    <Brl value={card.limit} />
-                  </>
-                ) : null}
-              </p>
-            </div>
-            <IconButton
-              label={`Editar ${card.name}`}
-              onClick={() => onEditCard(card)}
-            >
-              <Pencil size={15} />
-            </IconButton>
-            <IconButton
-              label={`Excluir ${card.name}`}
-              onClick={() => onDeleteCard(card)}
-              danger
-            >
-              <Trash2 size={15} />
-            </IconButton>
-          </li>
+      {series.length > 0 && (
+        <p className="mt-0.5 text-xs lowercase text-fg-muted">
+          <Brl value={total} /> na próxima cobrança de cada uma
+        </p>
+      )}
+      <ul className="mt-3 flex flex-col divide-y divide-border-base">
+        {series.map((s) => (
+          <SeriesRow
+            key={s.groupId}
+            series={s}
+            cards={cards}
+            today={today}
+            onUpdate={onUpdateSeries}
+            onEnd={onEndSeries}
+          />
         ))}
       </ul>
-      <AddButton label="novo cartão" onClick={onCreateCard} />
-
-      {cards.length > 0 && (
-        <>
-          <p className="mt-5 text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">
-            parcelas e assinaturas
-          </p>
-          <ul className="mt-1 flex flex-col divide-y divide-border-base">
-            {series.map((s) => (
-              <SeriesRow
-                key={s.groupId}
-                series={s}
-                cards={cards}
-                today={props.today}
-                onUpdate={props.onUpdateSeries}
-                onEnd={props.onEndSeries}
-              />
-            ))}
-          </ul>
-          {series.length === 0 && !adding && (
-            <p className="mt-2 text-sm lowercase text-fg-subtle">
-              nenhuma parcela ou assinatura.
-            </p>
-          )}
-          {adding ? (
-            <AddForm
-              kind="cartao"
-              cards={cards}
-              today={props.today}
-              onCancel={() => setAdding(false)}
-              onCreate={props.onCreate}
-            />
-          ) : (
-            <AddButton
-              label="nova compra parcelada ou assinatura"
-              onClick={() => setAdding(true)}
-            />
-          )}
-        </>
+      {adding ? (
+        <AddForm
+          kind="cartao"
+          cards={ordered}
+          today={today}
+          onCancel={() => setAdding(false)}
+          onCreate={onCreate}
+        />
+      ) : (
+        <AddButton
+          label="nova compra parcelada ou assinatura"
+          onClick={() => setAdding(true)}
+        />
       )}
     </Tile>
   );
