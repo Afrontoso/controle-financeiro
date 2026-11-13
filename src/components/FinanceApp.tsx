@@ -15,6 +15,8 @@ import { FixedView } from "@/components/views/FixedView";
 import { MenuView } from "@/components/views/MenuView";
 import { OverviewView } from "@/components/views/OverviewView";
 import { ApartmentView } from "@/components/views/ApartmentView";
+import { SettingsView } from "@/components/views/SettingsView";
+import { useAppSettings } from "@/hooks/useAppSettings";
 import { ApartmentPlanModal } from "@/components/ApartmentPlanModal";
 import { VaultsView, vaultDeleteDescription } from "@/components/views/VaultsView";
 import { VaultModal } from "@/components/VaultModal";
@@ -65,9 +67,10 @@ const VIEW_TITLES: Record<ViewKey, string> = {
   bancos: "bancos",
   cartoes: "cartões de crédito",
   fluxo: "fluxo de caixa",
-  fixos: "rendas, contas e cartão",
+  fixos: "rendas e contas fixas",
   contas: "contas",
   renda: "renda",
+  config: "configurações",
   menu: "menu",
 };
 
@@ -93,6 +96,14 @@ export function FinanceApp() {
   );
   const apartment = useApartment();
   const openFinance = useOpenFinance();
+  const { settings, update: updateSettings } = useAppSettings();
+  // Sem escolha feita, o apartamento só aparece para quem já tem plano.
+  const apartamentoOn = settings.apartamento ?? Boolean(apartment.plan);
+  const apartmentPlan = apartamentoOn ? apartment.plan : null;
+  const hiddenViews: ViewKey[] = [
+    ...(openFinance.enabled ? [] : (["bancos"] as const)),
+    ...(apartamentoOn ? [] : (["apartamento"] as const)),
+  ];
   const [planModalOpen, setPlanModalOpen] = useState(false);
   const [vaultModal, setVaultModal] = useState<{ editing: Vault | null; asReserve?: boolean } | null>(null);
   const [deletingVault, setDeletingVault] = useState<Vault | null>(null);
@@ -620,7 +631,8 @@ export function FinanceApp() {
 
   return (
     <AppShell
-      hiddenViews={openFinance.enabled ? [] : ["bancos"]}
+      hiddenViews={hiddenViews}
+      order={settings.ordem}
       view={view}
       onViewChange={setView}
       onAdd={() => openCreateModal()}
@@ -667,7 +679,7 @@ export function FinanceApp() {
           }}
           savings={savings}
           today={today}
-          plan={apartment.plan}
+          plan={apartmentPlan}
           onOpenApartment={() => setView("apartamento")}
           onOpenVaults={() => setView("cofres")}
           inboxCount={openFinance.enabled ? openFinance.pending.length : 0}
@@ -729,7 +741,7 @@ export function FinanceApp() {
       )}
 
       {view === "renda" && (
-        <IncomeView transactions={transactions} today={today} rendaBanco={apartment.plan?.rendaBanco ?? null} />
+        <IncomeView transactions={transactions} today={today} rendaBanco={apartmentPlan?.rendaBanco ?? null} />
       )}
 
       {view === "saldos" && (
@@ -754,7 +766,7 @@ export function FinanceApp() {
         <TotalsView summary={summary} annual={annual} savings={savings} onSelectDay={openDay} />
       )}
 
-      {view === "apartamento" && (
+      {view === "apartamento" && apartamentoOn && (
         <ApartmentView
           plan={apartment.plan}
           today={today}
@@ -836,12 +848,23 @@ export function FinanceApp() {
         />
       )}
 
+      {view === "config" && (
+        <SettingsView
+          apartamento={apartamentoOn}
+          onApartamentoChange={(on) => updateSettings({ apartamento: on })}
+          order={settings.ordem}
+          onOrderChange={(ordem) => updateSettings({ ordem })}
+          hiddenViews={hiddenViews}
+        />
+      )}
+
       {view === "menu" && (
         <MenuView
           onOpenView={setView}
           onOpenIncome={() => setView("renda")}
           onOpenHorizon={() => setView("horizonte")}
-          onOpenApartment={() => setView("apartamento")}
+          onOpenApartment={apartamentoOn ? () => setView("apartamento") : undefined}
+          onOpenSettings={() => setView("config")}
           onOpenVaults={() => setView("cofres")}
           onOpenBanks={openFinance.enabled ? () => setView("bancos") : undefined}
           onResetData={finance.resetAllData}

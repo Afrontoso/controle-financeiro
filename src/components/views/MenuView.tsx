@@ -19,6 +19,7 @@ import {
   Mail,
   MessageSquare,
   Moon,
+  Settings,
   Share2,
   Sigma,
   Sun,
@@ -41,7 +42,9 @@ interface MenuViewProps {
   onOpenView: (view: "saldos" | "totais" | "orcamentos" | "cartoes" | "fluxo") => void;
   onOpenIncome: () => void;
   onOpenHorizon: () => void;
-  onOpenApartment: () => void;
+  /** Sem isso o apartamento está desligado em configurações. */
+  onOpenApartment?: () => void;
+  onOpenSettings: () => void;
   onOpenVaults: () => void;
   /** Só para quem tem Open Finance. */
   onOpenBanks?: () => void;
@@ -50,7 +53,7 @@ interface MenuViewProps {
   dataCounts: { transactions: number; budgets: number; cards: number };
 }
 
-export function MenuView({ onOpenView, onOpenIncome, onOpenHorizon, onOpenApartment, onOpenVaults, onOpenBanks, onGoToday, onResetData, dataCounts }: MenuViewProps) {
+export function MenuView({ onOpenView, onOpenIncome, onOpenHorizon, onOpenApartment, onOpenSettings, onOpenVaults, onOpenBanks, onGoToday, onResetData, dataCounts }: MenuViewProps) {
   const { theme, toggleTheme } = useTheme();
   const { data: session } = useSession();
   const showToast = useToast();
@@ -108,13 +111,15 @@ export function MenuView({ onOpenView, onOpenIncome, onOpenHorizon, onOpenApartm
           <MenuRow icon={TrendingUp} label="fluxo de caixa" hint="entra e sai" onClick={() => onOpenView("fluxo")} className="md:hidden" />
           <MenuRow icon={CreditCard} label="cartões" hint="faturas" onClick={() => onOpenView("cartoes")} className="md:hidden" />
           <MenuRow icon={HandCoins} label="renda" hint="o que entra" onClick={onOpenIncome} className="md:hidden" />
-          <MenuRow
-            icon={Building2}
-            label="apartamento"
-            hint="financiamento"
-            onClick={onOpenApartment}
-            className="md:hidden"
-          />
+          {onOpenApartment && (
+            <MenuRow
+              icon={Building2}
+              label="apartamento"
+              hint="financiamento"
+              onClick={onOpenApartment}
+              className="md:hidden"
+            />
+          )}
           <MenuRow
             icon={PiggyBank}
             label="cofres"
@@ -148,6 +153,8 @@ export function MenuView({ onOpenView, onOpenIncome, onOpenHorizon, onOpenApartm
             onClick={onGoToday}
             className="md:hidden"
           />
+
+          <MenuRow icon={Settings} label="configurações" hint="telas e barra lateral" onClick={onOpenSettings} />
 
           <MenuRow
             icon={theme === "dark" ? Sun : Moon}

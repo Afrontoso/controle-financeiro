@@ -35,9 +35,10 @@ export type ViewKey =
   | "cofres"
   | "bancos"
   | "cartoes"
+  | "config"
   | "menu";
 
-interface NavItem {
+export interface NavItem {
   key: ViewKey;
   label: string;
   icon: typeof Wallet;
@@ -47,8 +48,8 @@ interface NavItem {
   short?: string;
 }
 
-// A ordem é a da barra lateral.
-const NAV_ITEMS: NavItem[] = [
+// Ordem padrão da barra lateral; dá para mudar em configurações.
+export const NAV_ITEMS: NavItem[] = [
   { key: "visao", label: "visão geral", icon: Gauge, tab: true, short: "visão" },
   { key: "fluxo", label: "fluxo de caixa", icon: TrendingUp, short: "fluxo" },
   { key: "contas", label: "contas", icon: ReceiptText, tab: true },
@@ -67,6 +68,8 @@ const NAV_ITEMS: NavItem[] = [
 interface AppShellProps {
   /** Telas que este usuário não tem (ex.: bancos sem Open Finance). */
   hiddenViews?: ViewKey[];
+  /** Ordem escolhida para a barra lateral; o que faltar segue a padrão. */
+  order?: ViewKey[];
   view: ViewKey;
   onViewChange: (view: ViewKey) => void;
   onAdd: () => void;
@@ -74,9 +77,9 @@ interface AppShellProps {
   children: React.ReactNode;
 }
 
-export function AppShell({ hiddenViews = [], view, onViewChange, onAdd, onGoToday, children }: AppShellProps) {
+export function AppShell({ hiddenViews = [], order, view, onViewChange, onAdd, onGoToday, children }: AppShellProps) {
   const [collapsed, setCollapsed] = useState(false);
-  const navItems = NAV_ITEMS.filter((item) => !hiddenViews.includes(item.key));
+  const navItems = orderedNavItems(order).filter((item) => !hiddenViews.includes(item.key));
 
   return (
     <div className="flex h-[100dvh] w-full overflow-hidden bg-bg text-fg">
@@ -97,6 +100,15 @@ export function AppShell({ hiddenViews = [], view, onViewChange, onAdd, onGoToda
       <MobileTabBar view={view} onViewChange={onViewChange} onAdd={onAdd} />
     </div>
   );
+}
+
+/** Itens da barra lateral na ordem escolhida; os que não estão nela vão para o fim. */
+export function orderedNavItems(order: ViewKey[] = []): NavItem[] {
+  const rank = (key: ViewKey) => {
+    const i = order.indexOf(key);
+    return i === -1 ? order.length + NAV_ITEMS.findIndex((item) => item.key === key) : i;
+  };
+  return [...NAV_ITEMS].sort((a, b) => rank(a.key) - rank(b.key));
 }
 
 /* ------------------------------------------------------------------ */
@@ -169,7 +181,7 @@ function DesktopSidebar({
           icon={Menu}
           label="menu"
           collapsed={collapsed}
-          active={view === "menu"}
+          active={view === "menu" || view === "config"}
           onClick={() => onViewChange("menu")}
         />
         <button
@@ -242,7 +254,8 @@ function MobileTabBar({ view, onViewChange, onAdd }: TabBarProps) {
   const left = mobileItems.slice(0, 2);
   const right = mobileItems.slice(2);
   // Telas sem aba própria abrem pelo menu no celular: a aba do menu fica acesa.
-  const menuActive = view === "menu" || NAV_ITEMS.some((item) => !item.tab && item.key === view);
+  const menuActive =
+    view === "menu" || view === "config" || NAV_ITEMS.some((item) => !item.tab && item.key === view);
 
   return (
     <nav
