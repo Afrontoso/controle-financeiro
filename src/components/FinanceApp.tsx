@@ -446,6 +446,17 @@ export function FinanceApp() {
     }
   }, [deletingVault, finance, showToast]);
 
+  /** Apelido de um cofrinho ou de uma aplicação do banco; vazio tira o apelido. */
+  const renameBankItem = useCallback(
+    (id: string, nome: string) => {
+      const apelidos = { ...(settings.apelidos ?? {}) };
+      if (nome) apelidos[id] = nome;
+      else delete apelidos[id];
+      updateSettings({ apelidos });
+    },
+    [settings.apelidos, updateSettings],
+  );
+
   const syncBanks = useCallback(async () => {
     try {
       await openFinance.sync();
@@ -708,6 +719,8 @@ export function FinanceApp() {
           syncing={openFinance.syncing}
           today={today}
           onSync={() => void syncBanks()}
+          apelidos={settings.apelidos ?? {}}
+          onRename={renameBankItem}
         />
       )}
 

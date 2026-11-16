@@ -198,7 +198,12 @@ export interface SnapshotAccount {
   availableCreditLimit?: number | null;
   balanceDueDate?: string | null;
   /** Só conta: cofrinhos (Mercado Pago). */
-  reserved?: { name: string; amount: number }[];
+  reserved?: {
+    /** Id do cofrinho no banco; falta nos retratos antigos. */
+    id?: string | null;
+    name: string;
+    amount: number;
+  }[];
 }
 
 export interface SnapshotItem {
@@ -211,6 +216,8 @@ export interface SnapshotItem {
 }
 
 export interface SnapshotInvestment {
+  /** Id da aplicação na Pluggy; falta nos retratos antigos. */
+  id?: string | null;
   type: string;
   subtype: string | null;
   name: string;
@@ -230,10 +237,25 @@ export interface SnapshotInvestment {
   dueDate?: string | null;
 }
 
+/** Aporte ou resgate em uma aplicação, como o banco informa. */
+export interface InvestmentMove {
+  id: string;
+  /** YYYY-MM-DD. */
+  date: string;
+  kind: "aporte" | "resgate";
+  amount: number;
+  /** Subtipo da aplicação ("CDB"), para separar por classe. */
+  subtype: string | null;
+  rate: number | null;
+  rateType: string | null;
+}
+
 export interface BankSnapshotData {
   items: SnapshotItem[];
   accounts: SnapshotAccount[];
   investments: SnapshotInvestment[];
+  /** Movimentos recentes das aplicações; falta nos retratos antigos. */
+  moves?: InvestmentMove[];
 }
 
 /** Dinheiro disponível nas contas: saldo + cofrinhos (cartão fica de fora). */
@@ -297,6 +319,8 @@ export function netWorth(snapshot: BankSnapshotData): NetWorth {
 /** Uma aplicação, como a tela de investimentos mostra. */
 export interface InvestmentPosition {
   key: string;
+  /** Id da aplicação no banco, para prender um apelido; null nos retratos antigos. */
+  id: string | null;
   /** Ticker, ou a data em que foi aplicado, ou o nome do papel. */
   label: string;
   /** Ticker, quando é ação, fundo ou ETF. */
@@ -340,7 +364,8 @@ export function investmentGroups(snapshot: BankSnapshotData): InvestmentGroup[] 
     group.total += inv.balance;
     if (profit !== null) group.profit = (group.profit ?? 0) + profit;
     group.positions.push({
-      key: `${key}:${group.positions.length}`,
+      key: inv.id ?? `${key}:${group.positions.length}`,
+      id: inv.id ?? null,
       label: positionLabel(inv),
       code: isVariableIncome(inv) ? (inv.code ?? null) : null,
       value: inv.balance,
@@ -391,4 +416,69 @@ function positionLabel(inv: SnapshotInvestment): string {
   if (inv.issueDate) return `aplicado em ${inv.issueDate.split("-").reverse().join("/")}`;
   // "CDB - NU FINANCEIRA S.A. - SOCIEDADE DE..." -> "cdb - nu financeira s.a."
   return inv.name.split(" - ").slice(0, 2).join(" - ").toLowerCase();
+}
+
+/* ------------------------------------------------------------------ */
+/* Reserva em renda fixa de banco (cdb e parentes)                     */
+/* ------------------------------------------------------------------ */
+
+const BANK_FIXED_INCOME = new Set(["CDB", "RDB", "LCI", "LCA"]);
+
+/** CDB, RDB, LCI, LCA: o dinheiro que fica rendendo no banco, pronto para usar. */
+export function isBankFixedIncome(inv: { subtype?: string | null }): boolean {
+  return BANK_FIXED_INCOME.has(inv.subtype ?? "");
+}
+
+export interface ReserveSummary {
+  total: number;
+  /** Soma do que foi aplicado, onde o banco informa. */
+  aplicado: number;
+  rendimento: number;
+  posicoes: number;
+  /** Quanto está em cada taxa ("115% do cdi"). */
+  porTaxa: { key: string; label: string; total: number }[];
+  aportes: number;
+  resgates: number;
+  /** Aportes e resgates, do mais novo para o mais velho. */
+  moves: InvestmentMove[];
+}
+
+/**
+ * O bolo de CDB e parentes visto junto: é onde costuma ficar a reserva, e
+ * espalhado em dezenas de aplicações fica difícil de achar.
+ */
+export function reserveSummary(snapshot: BankSnapshotData): ReserveSummary | null {
+  const posicoes = snapshot.investments.filter(isBankFixedIncome);
+  if (posicoes.length === 0) return null;
+
+  const porTaxa = new Map<string, { key: string; label: string; total: number }>();
+  let aplicado = 0;
+  let rendimento = 0;
+  for (const inv of posicoes) {
+    if (inv.amountOriginal != null && inv.amountOriginal > 0) {
+      aplicado += inv.amountOriginal;
+      rendimento += inv.balance - inv.amountOriginal;
+    }
+    const key = inv.rate && inv.rateType ? `${inv.rate}:${inv.rateType}` : "sem taxa";
+    const label =
+      inv.rate && inv.rateType ? `${inv.rate.toLocaleString("pt-BR")}% do ${inv.rateType.toLowerCase()}` : "sem taxa informada";
+    const atual = porTaxa.get(key) ?? { key, label, total: 0 };
+    atual.total += inv.balance;
+    porTaxa.set(key, atual);
+  }
+
+  const moves = (snapshot.moves ?? [])
+    .filter((m) => BANK_FIXED_INCOME.has(m.subtype ?? ""))
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+
+  return {
+    total: posicoes.reduce((s, i) => s + i.balance, 0),
+    aplicado,
+    rendimento,
+    posicoes: posicoes.length,
+    porTaxa: [...porTaxa.values()].sort((a, b) => b.total - a.total),
+    aportes: moves.filter((m) => m.kind === "aporte").reduce((s, m) => s + m.amount, 0),
+    resgates: moves.filter((m) => m.kind === "resgate").reduce((s, m) => s + m.amount, 0),
+    moves,
+  };
 }

@@ -1,13 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
+  ArrowDownToLine,
+  ArrowUpFromLine,
   ChevronDown,
   CreditCard,
   Eye,
   Landmark,
+  Pencil,
   PiggyBank,
   RefreshCw,
+  ShieldCheck,
   TrendingUp,
   TriangleAlert,
   Wallet,
@@ -17,9 +21,11 @@ import { formatPercent } from "@/lib/format";
 import {
   investmentGroups,
   netWorth,
+  reserveSummary,
   type BankSnapshotData,
   type InvestmentGroup,
   type InvestmentPosition,
+  type ReserveSummary,
   type SnapshotAccount,
 } from "@/lib/openFinance";
 
@@ -45,6 +51,13 @@ interface BanksViewProps {
   syncing: boolean;
   today: Date;
   onSync: () => void;
+  /**
+   * Nomes que você deu ao que o banco não nomeia, por id do cofrinho ou da
+   * aplicação. Ficam guardados na sua conta.
+   */
+  apelidos: Record<string, string>;
+  /** Nome vazio tira o apelido e volta o que o banco manda. */
+  onRename: (id: string, nome: string) => void;
 }
 
 /**
@@ -52,7 +65,7 @@ interface BanksViewProps {
  * investimentos, contas, cofrinhos e cartões — sem tocar em nada do app. Nada
  * daqui vira lançamento; as outras telas seguem só com o que você lança.
  */
-export function BanksView({ syncedAt, snapshot, syncing, today, onSync }: BanksViewProps) {
+export function BanksView({ syncedAt, snapshot, syncing, today, onSync, apelidos, onRename }: BanksViewProps) {
   const contas = (snapshot?.accounts ?? []).filter((a) => a.type === "BANK");
   const cartoes = (snapshot?.accounts ?? []).filter((a) => a.type === "CREDIT");
 
@@ -63,10 +76,11 @@ export function BanksView({ syncedAt, snapshot, syncing, today, onSync }: BanksV
         {snapshot && (
           <>
             <PatrimonioCard snapshot={snapshot} />
-            <InvestimentosCard snapshot={snapshot} />
+            <ReservaCard reserve={reserveSummary(snapshot)} />
+            <InvestimentosCard snapshot={snapshot} apelidos={apelidos} onRename={onRename} />
             <div className="grid grid-cols-1 gap-3 md:gap-4 lg:grid-cols-2">
               <ContasCard contas={contas} />
-              <CofrinhosCard contas={contas} />
+              <CofrinhosCard contas={contas} apelidos={apelidos} onRename={onRename} />
             </div>
             <CartoesCard cartoes={cartoes} />
           </>
@@ -269,10 +283,164 @@ function Donut({
 }
 
 /* ------------------------------------------------------------------ */
+/* Reserva no cdb                                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * O cdb (e parentes) em destaque: é onde o dinheiro fica rendendo e pronto
+ * para usar, mas o banco quebra em dezenas de aplicações — somado e com os
+ * aportes e retiradas do ano, dá para achar de relance.
+ */
+function ReservaCard({ reserve }: { reserve: ReserveSummary | null }) {
+  const [openMoves, setOpenMoves] = useState(false);
+  if (!reserve || reserve.total <= 0) return null;
+
+  const rendeu = reserve.aplicado > 0 ? reserve.rendimento / reserve.aplicado : null;
+  const temMovimentos = reserve.moves.length > 0;
+
+  return (
+    <section
+      className="rounded-2xl border-2 bg-surface p-4 md:p-5"
+      style={{ borderColor: "var(--entrada)" }}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span
+            className="grid size-10 place-items-center rounded-xl"
+            style={{ background: "var(--entrada-soft)", color: "var(--entrada)" }}
+          >
+            <ShieldCheck size={20} />
+          </span>
+          <div>
+            <h2 className="text-base font-semibold lowercase">reserva em cdb</h2>
+            <p className="text-xs lowercase text-fg-subtle">
+              {reserve.posicoes} {reserve.posicoes === 1 ? "aplicação rendendo" : "aplicações rendendo"} todo dia
+            </p>
+          </div>
+        </div>
+        <p className="text-2xl font-bold tabular md:text-3xl">
+          <Brl value={reserve.total} />
+        </p>
+      </div>
+
+      {reserve.aplicado > 0 && (
+        <dl className="mt-3 grid grid-cols-2 gap-2">
+          <Figure label="aplicado" value={<Brl value={reserve.aplicado} />} hint="o que você colocou" />
+          <Figure
+            label="rendimento"
+            value={<Brl value={reserve.rendimento} />}
+            hint={rendeu === null ? undefined : `${reserve.rendimento >= 0 ? "+" : "−"}${formatPercent(Math.abs(rendeu) * 100, 2)} sobre o aplicado`}
+            color={reserve.rendimento >= 0 ? "var(--entrada)" : "var(--saida)"}
+          />
+        </dl>
+      )}
+
+      {reserve.porTaxa.length > 0 && (
+        <ul className="mt-3 flex flex-col gap-2">
+          {reserve.porTaxa.map((taxa) => (
+            <li key={taxa.key}>
+              <div className="flex items-baseline justify-between gap-3 text-sm">
+                <span className="min-w-0 truncate lowercase">{taxa.label}</span>
+                <span className="shrink-0 tabular">
+                  <span className="font-semibold">
+                    <Brl value={taxa.total} />
+                  </span>
+                  <span className="ml-1.5 text-[11px] text-fg-subtle">
+                    {formatPercent((taxa.total / Math.max(reserve.total, 1)) * 100, 0)}
+                  </span>
+                </span>
+              </div>
+              <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-surface-3">
+                <div
+                  className="h-full rounded-full"
+                  style={{ width: `${(taxa.total / Math.max(reserve.total, 1)) * 100}%`, background: "var(--entrada)" }}
+                />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {temMovimentos && (
+        <div className="mt-4 border-t border-border-base pt-3">
+          <p className="text-xs lowercase text-fg-muted">aportes e retiradas no último ano</p>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <MoveTotal kind="aporte" value={reserve.aportes} />
+            <MoveTotal kind="resgate" value={reserve.resgates} />
+          </div>
+          <button
+            type="button"
+            onClick={() => setOpenMoves((v) => !v)}
+            className="mt-2 flex w-full items-center gap-1 rounded-lg px-1 py-1.5 text-xs lowercase text-fg-muted hover:bg-surface-2 hover:text-fg"
+          >
+            <ChevronDown size={13} className={openMoves ? "" : "-rotate-90"} />
+            {openMoves ? "esconder" : `ver ${reserve.moves.length === 1 ? "o movimento" : `os ${reserve.moves.length} movimentos`}`}
+          </button>
+          {openMoves && (
+            <ul className="flex flex-col divide-y divide-border-base">
+              {reserve.moves.map((m) => {
+                const saida = m.kind === "resgate";
+                return (
+                  <li key={m.id} className="flex items-center justify-between gap-3 py-1.5 text-sm">
+                    <span className="flex min-w-0 items-center gap-2 lowercase">
+                      {saida ? (
+                        <ArrowUpFromLine size={13} style={{ color: "var(--saida)" }} />
+                      ) : (
+                        <ArrowDownToLine size={13} style={{ color: "var(--entrada)" }} />
+                      )}
+                      {m.kind}
+                      <span className="text-[11px] text-fg-subtle">{formatDate(m.date)}</span>
+                    </span>
+                    <span
+                      className="shrink-0 font-semibold tabular"
+                      style={{ color: saida ? "var(--saida)" : "var(--entrada)" }}
+                    >
+                      {saida ? "−" : "+"}
+                      <Brl value={m.amount} />
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function MoveTotal({ kind, value }: { kind: "aporte" | "resgate"; value: number }) {
+  const saida = kind === "resgate";
+  const color = saida ? "var(--saida)" : "var(--entrada)";
+  return (
+    <div className="flex items-center gap-2 rounded-xl bg-surface-2 px-3 py-2.5">
+      <span className="grid size-7 shrink-0 place-items-center rounded-lg" style={{ background: saida ? "var(--saida-soft)" : "var(--entrada-soft)", color }}>
+        {saida ? <ArrowUpFromLine size={14} /> : <ArrowDownToLine size={14} />}
+      </span>
+      <div className="min-w-0">
+        <p className="text-[11px] lowercase text-fg-muted">{saida ? "retirado" : "aportado"}</p>
+        <p className="truncate font-bold tabular" style={{ color }}>
+          <Brl value={value} />
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Investimentos                                                       */
 /* ------------------------------------------------------------------ */
 
-function InvestimentosCard({ snapshot }: { snapshot: BankSnapshotData }) {
+function InvestimentosCard({
+  snapshot,
+  apelidos,
+  onRename,
+}: {
+  snapshot: BankSnapshotData;
+  apelidos: Record<string, string>;
+  onRename: (id: string, nome: string) => void;
+}) {
+  const [abertos, setAbertos] = useState<string[]>([]);
   const groups = investmentGroups(snapshot);
   const total = groups.reduce((s, g) => s + g.total, 0);
   const posicoes = groups.flatMap((g) => g.positions);
@@ -290,12 +458,15 @@ function InvestimentosCard({ snapshot }: { snapshot: BankSnapshotData }) {
     );
   }
 
+  const toggle = (key: string) =>
+    setAbertos((cur) => (cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]));
+
   return (
     <Panel
       icon={TrendingUp}
       title="investimentos"
       total={total}
-      subtitle={`${groups.length} ${groups.length === 1 ? "tipo" : "tipos"} de aplicação`}
+      subtitle={`${groups.length} ${groups.length === 1 ? "tipo" : "tipos"} de aplicação · toque para abrir`}
     >
       <dl className="mt-1 grid grid-cols-2 gap-2 md:grid-cols-3">
         {aplicado > 0 && (
@@ -320,67 +491,81 @@ function InvestimentosCard({ snapshot }: { snapshot: BankSnapshotData }) {
         />
       </dl>
 
-      {/* Quanto cada tipo pesa no total investido. */}
-      <ul className="mt-4 flex flex-col gap-2.5">
-        {groups.map((g, i) => (
-          <li key={g.key}>
-            <div className="flex items-baseline justify-between gap-3 text-sm">
-              <span className="min-w-0 truncate lowercase">{g.label}</span>
-              <span className="shrink-0 tabular">
-                <span className="font-semibold">
-                  <Brl value={g.total} />
-                </span>
-                <span className="ml-1.5 text-[11px] text-fg-subtle">
-                  {formatPercent((g.total / Math.max(total, 1)) * 100, 0)}
-                </span>
-              </span>
-            </div>
-            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-surface-3">
-              <div
-                className="h-full rounded-full"
-                style={{
-                  width: `${(g.total / Math.max(total, 1)) * 100}%`,
-                  background: GROUP_COLORS[i % GROUP_COLORS.length],
-                }}
-              />
-            </div>
-          </li>
-        ))}
+      {/* O total de cada tipo abre as aplicações que estão dentro dele. */}
+      <ul className="mt-4 flex flex-col">
+        {groups.map((g, i) => {
+          const aberto = abertos.includes(g.key);
+          const color = GROUP_COLORS[i % GROUP_COLORS.length];
+          return (
+            <li key={g.key} className="border-b border-border-base last:border-b-0">
+              <button
+                type="button"
+                onClick={() => toggle(g.key)}
+                aria-expanded={aberto}
+                className="w-full rounded-xl px-2 py-2.5 text-left hover:bg-surface-2"
+              >
+                <div className="flex items-baseline justify-between gap-3 text-sm">
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <ChevronDown
+                      size={14}
+                      className={`shrink-0 text-fg-subtle transition-transform ${aberto ? "" : "-rotate-90"}`}
+                    />
+                    <span className="truncate lowercase">{g.label}</span>
+                    <span className="shrink-0 text-[11px] lowercase text-fg-subtle">
+                      {g.positions.length} {g.positions.length === 1 ? "aplicação" : "aplicações"}
+                    </span>
+                  </span>
+                  <span className="shrink-0 tabular">
+                    <span className="font-semibold">
+                      <Brl value={g.total} />
+                    </span>
+                    <span className="ml-1.5 text-[11px] text-fg-subtle">
+                      {formatPercent((g.total / Math.max(total, 1)) * 100, 0)}
+                    </span>
+                  </span>
+                </div>
+                <div className="mt-1.5 ml-[22px] h-1.5 overflow-hidden rounded-full bg-surface-3">
+                  <div
+                    className="h-full rounded-full"
+                    style={{ width: `${(g.total / Math.max(total, 1)) * 100}%`, background: color }}
+                  />
+                </div>
+              </button>
+              {aberto && (
+                <div className="animate-fade-in mb-2 ml-[22px]">
+                  <GroupPositions group={g} apelidos={apelidos} onRename={onRename} />
+                </div>
+              )}
+            </li>
+          );
+        })}
       </ul>
-
-      {/* Cada aplicação na sua linha: é aqui que dá pra ver o que está junto. */}
-      <div className="mt-5 flex flex-col gap-4 border-t border-border-base pt-4">
-        {groups.map((g, i) => (
-          <GroupPositions key={g.key} group={g} color={GROUP_COLORS[i % GROUP_COLORS.length]} />
-        ))}
-      </div>
     </Panel>
   );
 }
 
-function GroupPositions({ group, color }: { group: InvestmentGroup; color: string }) {
+function GroupPositions({
+  group,
+  apelidos,
+  onRename,
+}: {
+  group: InvestmentGroup;
+  apelidos: Record<string, string>;
+  onRename: (id: string, nome: string) => void;
+}) {
   const [showDust, setShowDust] = useState(false);
   const grandes = group.positions.filter((p) => p.value >= DUST);
   const sobras = group.positions.filter((p) => p.value < DUST);
   const totalSobras = sobras.reduce((s, p) => s + p.value, 0);
 
   return (
-    <section>
-      <div className="flex items-baseline justify-between gap-3">
-        <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-fg-subtle">
-          <span className="size-2 rounded-full" style={{ background: color }} aria-hidden />
-          {group.label}
-        </h3>
-        <p className="text-xs lowercase text-fg-subtle">
-          {group.positions.length} {group.positions.length === 1 ? "aplicação" : "aplicações"}
-        </p>
-      </div>
-      <ul className="mt-1 flex flex-col divide-y divide-border-base">
+    <>
+      <ul className="flex flex-col divide-y divide-border-base">
         {grandes.map((p) => (
-          <PositionRow key={p.key} position={p} />
+          <PositionRow key={p.key} position={p} apelidos={apelidos} onRename={onRename} />
         ))}
         {(showDust ? sobras : []).map((p) => (
-          <PositionRow key={p.key} position={p} />
+          <PositionRow key={p.key} position={p} apelidos={apelidos} onRename={onRename} />
         ))}
       </ul>
       {sobras.length > 0 && (
@@ -390,7 +575,7 @@ function GroupPositions({ group, color }: { group: InvestmentGroup; color: strin
           className="mt-1 flex w-full items-center justify-between gap-2 rounded-lg px-1 py-1.5 text-xs lowercase text-fg-muted hover:bg-surface-2 hover:text-fg"
         >
           <span className="flex items-center gap-1">
-            <ChevronDown size={13} className={showDust ? "rotate-180" : ""} />
+            <ChevronDown size={13} className={showDust ? "" : "-rotate-90"} />
             {sobras.length} {sobras.length === 1 ? "aplicação" : "aplicações"} de centavos
           </span>
           <span className="tabular">
@@ -398,12 +583,24 @@ function GroupPositions({ group, color }: { group: InvestmentGroup; color: strin
           </span>
         </button>
       )}
-    </section>
+    </>
   );
 }
 
-function PositionRow({ position: p }: { position: InvestmentPosition }) {
+function PositionRow({
+  position: p,
+  apelidos,
+  onRename,
+}: {
+  position: InvestmentPosition;
+  apelidos: Record<string, string>;
+  onRename: (id: string, nome: string) => void;
+}) {
   const detalhes: React.ReactNode[] = [];
+  // Ação e fundo já vêm com o ticker; quem ganha apelido é o que o banco não
+  // nomeia (as caixinhas do Nubank chegam todas como "CDB - NU FINANCEIRA").
+  const id = p.code ? null : p.id;
+  if (id && apelidos[id]) detalhes.push(<>{p.label}</>);
   // Quantidade × preço só faz sentido no que tem cota (ação, fundo, etf): na
   // renda fixa a Pluggy manda milhares de "unidades" de um centavo.
   if (p.code && p.quantity && p.unitValue) {
@@ -419,7 +616,9 @@ function PositionRow({ position: p }: { position: InvestmentPosition }) {
   return (
     <li className="flex items-baseline justify-between gap-3 py-1.5">
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm lowercase">{p.label}</p>
+        <div className="text-sm">
+          <NameWithAlias id={id} bankName={p.label} apelidos={apelidos} onRename={onRename} />
+        </div>
         {detalhes.length > 0 && (
           <p className="text-[11px] lowercase text-fg-subtle">
             {detalhes.map((d, i) => (
@@ -483,32 +682,41 @@ function ContasCard({ contas }: { contas: SnapshotAccount[] }) {
   );
 }
 
-function CofrinhosCard({ contas }: { contas: SnapshotAccount[] }) {
+function CofrinhosCard({
+  contas,
+  apelidos,
+  onRename,
+}: {
+  contas: SnapshotAccount[];
+  apelidos: Record<string, string>;
+  onRename: (id: string, nome: string) => void;
+}) {
   const todos = contas.flatMap((a) => (a.reserved ?? []).map((r) => ({ ...r, conta: a.name })));
   const comValor = todos.filter((r) => r.amount > 0).sort((a, b) => b.amount - a.amount);
+  const zerados = todos.length - comValor.length;
+  const total = comValor.reduce((s, r) => s + r.amount, 0);
+  const maior = comValor[0]?.amount ?? 1;
+  const variasContas = new Set(todos.map((r) => r.conta)).size > 1;
   // O banco manda cofrinho sem nome: numera para não virarem linhas iguais.
   const repetidos = new Map<string, number>();
-  const nomeDe = (nome: string) => {
+  const nomeDoBanco = (nome: string) => {
     const iguais = comValor.filter((r) => r.name === nome).length;
     if (iguais < 2) return nome.toLowerCase();
     const n = (repetidos.get(nome) ?? 0) + 1;
     repetidos.set(nome, n);
     return `${nome.toLowerCase()} ${n}`;
   };
-  const zerados = todos.length - comValor.length;
-  const total = comValor.reduce((s, r) => s + r.amount, 0);
-  const maior = comValor[0]?.amount ?? 1;
-  const variasContas = new Set(todos.map((r) => r.conta)).size > 1;
+  const semNome = comValor.filter((r) => r.id && !apelidos[r.id] && r.name.startsWith("cofrinho sem nome")).length;
 
   return (
     <Panel icon={PiggyBank} title="cofrinhos" total={total} subtitle="reservado dentro da conta">
       <ul className="mt-1 flex flex-col">
         {comValor.map((r, i) => (
-          <li key={`${r.conta}:${i}`} className="py-1.5">
+          <li key={r.id ?? `${r.conta}:${i}`} className="py-1.5">
             <div className="flex items-baseline justify-between gap-3 text-sm">
-              <span className="min-w-0 truncate lowercase">
-                {nomeDe(r.name)}
-                {variasContas && <span className="ml-1.5 text-[11px] text-fg-subtle">{r.conta.toLowerCase()}</span>}
+              <span className="flex min-w-0 items-baseline gap-1.5">
+                <NameWithAlias id={r.id} bankName={nomeDoBanco(r.name)} apelidos={apelidos} onRename={onRename} />
+                {variasContas && <span className="shrink-0 text-[11px] lowercase text-fg-subtle">{r.conta.toLowerCase()}</span>}
               </span>
               <span className="shrink-0 font-semibold tabular">
                 <Brl value={r.amount} />
@@ -524,6 +732,12 @@ function CofrinhosCard({ contas }: { contas: SnapshotAccount[] }) {
         ))}
         {comValor.length === 0 && <Empty>o banco não mostra cofrinhos com dinheiro.</Empty>}
       </ul>
+      {semNome > 0 && (
+        <p className="mt-2 text-xs lowercase text-fg-subtle">
+          o banco não manda o nome de {semNome} {semNome === 1 ? "cofrinho" : "cofrinhos"}: toque no lápis para dar
+          o seu.
+        </p>
+      )}
       {zerados > 0 && (
         <p className="mt-2 text-xs lowercase text-fg-subtle">
           {zerados} {zerados === 1 ? "cofrinho zerado" : "cofrinhos zerados"} ficam de fora.
@@ -610,6 +824,78 @@ function Panel({
       </div>
       {children}
     </section>
+  );
+}
+
+/**
+ * Nome de um cofrinho ou de uma aplicação. O banco nem sempre manda um ("CDB -
+ * NU FINANCEIRA" em toda caixinha do Nubank, cofrinho sem nome no Mercado
+ * Pago), então dá para escrever o seu: fica guardado na conta, preso ao id que
+ * o banco usa, e vale em qualquer aparelho. Apagar volta para o nome do banco.
+ */
+function NameWithAlias({
+  id,
+  bankName,
+  apelidos,
+  onRename,
+}: {
+  id?: string | null;
+  bankName: string;
+  apelidos: Record<string, string>;
+  onRename: (id: string, nome: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const cancelado = useRef(false);
+  const apelido = id ? apelidos[id] : undefined;
+
+  if (editing && id) {
+    return (
+      <input
+        autoFocus
+        defaultValue={apelido ?? ""}
+        placeholder={bankName}
+        maxLength={40}
+        aria-label="Nome do cofrinho"
+        onFocus={(e) => e.currentTarget.select()}
+        onBlur={(e) => {
+          setEditing(false);
+          if (cancelado.current) {
+            cancelado.current = false;
+            return;
+          }
+          const nome = e.currentTarget.value.trim();
+          if (nome !== (apelido ?? "")) onRename(id, nome);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+          if (e.key === "Escape") {
+            cancelado.current = true;
+            e.currentTarget.blur();
+          }
+        }}
+        className="min-w-0 flex-1 rounded-lg border border-border-strong bg-surface px-2 py-0.5 text-sm lowercase outline-none"
+      />
+    );
+  }
+
+  return (
+    <span className="flex min-w-0 items-baseline gap-1">
+      <span className="truncate lowercase">{apelido ?? bankName}</span>
+      {id && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setEditing(true);
+          }}
+          aria-label={`Dar um nome a ${apelido ?? bankName}`}
+          title="dar um nome"
+          className="shrink-0 rounded p-0.5 text-fg-subtle hover:bg-surface-3 hover:text-fg"
+        >
+          <Pencil size={11} />
+        </button>
+      )}
+    </span>
   );
 }
 

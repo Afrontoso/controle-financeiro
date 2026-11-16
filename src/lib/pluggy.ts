@@ -68,6 +68,9 @@ export async function pluggyClient(config: PluggyConfig) {
     accounts: async (itemId: string) => (await get<{ results: PluggyAccount[] }>(`/accounts?itemId=${itemId}`)).results,
     investments: async (itemId: string) =>
       (await get<{ results: PluggyInvestment[] }>(`/investments?itemId=${itemId}`)).results,
+    /** Aportes e resgates de uma aplicação. */
+    investmentTransactions: async (investmentId: string) =>
+      (await get<{ results: PluggyInvestmentTransaction[] }>(`/investments/${investmentId}/transactions`)).results,
     async transactions(accountId: string, dateFrom: string) {
       const out: PluggyRawTransaction[] = [];
       let path: string | null = `/v2/transactions?accountId=${accountId}&dateFrom=${dateFrom}`;
@@ -100,7 +103,12 @@ export interface PluggyAccount {
   marketingName?: string | null;
   balance: number;
   bankData?: {
-    reservedBalances?: { name?: string | null; availableAmounts?: { amount: number }[] }[];
+    reservedBalances?: {
+      name?: string | null;
+      /** Id do cofrinho no banco: estável entre as leituras. */
+      identification?: string | null;
+      availableAmounts?: { amount: number }[];
+    }[];
   } | null;
   creditData?: {
     creditLimit?: number | null;
@@ -110,6 +118,7 @@ export interface PluggyAccount {
 }
 
 export interface PluggyInvestment {
+  id: string;
   type: string;
   subtype?: string | null;
   name: string;
@@ -127,6 +136,16 @@ export interface PluggyInvestment {
   rateType?: string | null;
   issueDate?: string | null;
   dueDate?: string | null;
+}
+
+export interface PluggyInvestmentTransaction {
+  id: string;
+  /** "BUY" é aporte; o resto ("SELL", "TRANSFER_OUT"...) tira dinheiro. */
+  type: string;
+  amount: number;
+  netAmount?: number | null;
+  date: string;
+  tradeDate?: string | null;
 }
 
 export interface PluggyRawTransaction {

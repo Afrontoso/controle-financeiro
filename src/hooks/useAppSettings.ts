@@ -9,6 +9,11 @@ export interface AppSettings {
   apartamento?: boolean;
   /** Ordem da barra lateral; telas fora da lista vão para o fim. */
   ordem?: ViewKey[];
+  /**
+   * Nomes que você deu ao que o banco não nomeia (cofrinho sem nome, caixinha
+   * do Nubank), por id do cofrinho ou da aplicação. Só a aba de open finance usa.
+   */
+  apelidos?: Record<string, string>;
 }
 
 /** Cópia local só para a primeira pintura não piscar; quem manda é a conta. */
@@ -36,7 +41,7 @@ function save(settings: AppSettings) {
 }
 
 function isEmpty(settings: AppSettings) {
-  return settings.apartamento === undefined && !settings.ordem;
+  return settings.apartamento === undefined && !settings.ordem && !settings.apelidos;
 }
 
 export function useAppSettings() {

@@ -6,12 +6,24 @@
  */
 import { prisma } from "@/lib/prisma";
 import { pluggyClient, pluggyConfig, type PluggyAccount, type PluggyInvestment } from "@/lib/pluggy";
-import { classify, ownerKey, toBankTx, type BankSnapshotData, type PluggyAccountRef } from "@/lib/openFinance";
+import {
+  classify,
+  isBankFixedIncome,
+  ownerKey,
+  toBankTx,
+  type BankSnapshotData,
+  type InvestmentMove,
+  type PluggyAccountRef,
+} from "@/lib/openFinance";
 
 /** Na primeira leitura, quantos dias para trás buscar. */
 const FIRST_SYNC_DAYS = 60;
 /** Nas seguintes, relê esta janela para pegar compras que mudaram de PENDING para POSTED. */
 const RESYNC_DAYS = 30;
+/** Janela de aportes e resgates que o retrato guarda. */
+const MOVES_DAYS = 365;
+/** Quantas aplicações consultar de uma vez (a Pluggy pede uma chamada por papel). */
+const MOVES_BATCH = 10;
 
 /**
  * Chave geral (o Meu Pluggy lê as contas de UM CPF, então é uso pessoal): o Open Finance só liga com OPEN_FINANCE_ENABLED=true. Desligado,
@@ -54,7 +66,7 @@ export async function syncOpenFinance(userId: string): Promise<SyncResult> {
   const dateFrom = daysAgo(primeiraVez ? FIRST_SYNC_DAYS : RESYNC_DAYS);
 
   const client = await pluggyClient(config);
-  const snapshot: BankSnapshotData = { items: [], accounts: [], investments: [] };
+  const snapshot: BankSnapshotData = { items: [], accounts: [], investments: [], moves: [] };
   const fetched: ReturnType<typeof toBankTx>[] = [];
   const classification = new Map<string, { status: string; reason?: string }>();
 
@@ -80,10 +92,14 @@ export async function syncOpenFinance(userId: string): Promise<SyncResult> {
       }
     }
 
-    for (const inv of await client.investments(itemId)) {
+    const investments = await client.investments(itemId);
+    for (const inv of investments) {
       // A Pluggy manda também o que já foi resgatado, com saldo zero.
       if ((inv.balance ?? 0) > 0) snapshot.investments.push(snapshotInvestment(inv));
     }
+    // Aportes e resgates só da renda fixa de banco (cdb e parentes), inclusive
+    // das aplicações já zeradas: é nelas que estão os resgates.
+    snapshot.moves!.push(...(await investmentMoves(client, investments.filter(isBankFixedIncome))));
   }
 
   // Grava só o que é novo; nas já conhecidas, atualiza status do banco e valor
@@ -158,8 +174,53 @@ function accountLabel(account: PluggyAccount): string {
   return name;
 }
 
+/**
+ * Lê os aportes e resgates de cada aplicação. A Pluggy só responde um papel por
+ * chamada, então vai em lotes para não esperar um de cada vez.
+ */
+async function investmentMoves(
+  client: Awaited<ReturnType<typeof pluggyClient>>,
+  investments: PluggyInvestment[],
+): Promise<InvestmentMove[]> {
+  const since = daysAgo(MOVES_DAYS);
+  const moves: InvestmentMove[] = [];
+
+  for (let i = 0; i < investments.length; i += MOVES_BATCH) {
+    const lote = investments.slice(i, i + MOVES_BATCH);
+    const resultados = await Promise.all(
+      lote.map(async (inv) => {
+        try {
+          return { inv, txs: await client.investmentTransactions(inv.id) };
+        } catch (error) {
+          // Um papel que não responde não pode derrubar a sincronização toda.
+          console.error(`Não deu para ler os movimentos de ${inv.id}`, error);
+          return { inv, txs: [] };
+        }
+      }),
+    );
+    for (const { inv, txs } of resultados) {
+      for (const tx of txs) {
+        const date = (tx.tradeDate ?? tx.date).slice(0, 10);
+        if (date < since) continue;
+        moves.push({
+          id: tx.id,
+          date,
+          kind: tx.type === "BUY" ? "aporte" : "resgate",
+          amount: Math.abs(tx.netAmount ?? tx.amount),
+          subtype: inv.subtype ?? null,
+          rate: inv.rate ?? null,
+          rateType: inv.rateType ?? null,
+        });
+      }
+    }
+  }
+
+  return moves;
+}
+
 function snapshotInvestment(inv: PluggyInvestment): BankSnapshotData["investments"][number] {
   return {
+    id: inv.id,
     type: inv.type,
     subtype: inv.subtype ?? null,
     name: inv.name,
@@ -177,6 +238,7 @@ function snapshotInvestment(inv: PluggyInvestment): BankSnapshotData["investment
 
 function snapshotAccount(account: PluggyAccount): BankSnapshotData["accounts"][number] {
   const reserved = (account.bankData?.reservedBalances ?? []).map((r) => ({
+    id: r.identification ?? null,
     name: r.name?.trim() || "cofrinho sem nome",
     amount: (r.availableAmounts ?? []).reduce((s, a) => s + (a.amount ?? 0), 0),
   }));
