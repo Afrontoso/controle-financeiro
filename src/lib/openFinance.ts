@@ -215,6 +215,19 @@ export interface SnapshotInvestment {
   subtype: string | null;
   name: string;
   balance: number;
+  /** Ticker de ação, fundo ou ETF. */
+  code?: string | null;
+  quantity?: number | null;
+  /** Preço unitário: o da cota, nas ações e nos fundos. */
+  unitValue?: number | null;
+  /** Quanto foi aplicado; `balance - amountOriginal` é o rendimento. */
+  amountOriginal?: number | null;
+  /** 115 + "CDI" = 115% do CDI. */
+  rate?: number | null;
+  rateType?: string | null;
+  /** YYYY-MM-DD. */
+  issueDate?: string | null;
+  dueDate?: string | null;
 }
 
 export interface BankSnapshotData {
@@ -232,4 +245,150 @@ export function liquidTotal(snapshot: BankSnapshotData): number {
 
 export function investedTotal(snapshot: BankSnapshotData): number {
   return snapshot.investments.reduce((s, i) => s + i.balance, 0);
+}
+
+/* ------------------------------------------------------------------ */
+/* Composição do patrimônio                                            */
+/* ------------------------------------------------------------------ */
+
+/** Investimento sem renda fixa é renda variável (ação, fundo, ETF). */
+export function isVariableIncome(inv: SnapshotInvestment): boolean {
+  return inv.type === "EQUITY" || inv.subtype === "ETF" || inv.subtype === "MUTUAL_FUND";
+}
+
+export interface NetWorth {
+  /** Saldo solto nas contas. */
+  disponivel: number;
+  /** Cofrinhos do banco (dinheiro reservado dentro da conta). */
+  reservado: number;
+  rendaFixa: number;
+  rendaVariavel: number;
+  investido: number;
+  /** disponivel + reservado + investido. */
+  total: number;
+  /** Fatura em aberto nos cartões (dívida, fora do total). */
+  cartoes: number;
+  limite: number;
+  limiteLivre: number;
+}
+
+/** Quanto o usuário tem em cada lugar, pelo que os bancos informam. */
+export function netWorth(snapshot: BankSnapshotData): NetWorth {
+  const contas = snapshot.accounts.filter((a) => a.type === "BANK");
+  const cartoes = snapshot.accounts.filter((a) => a.type === "CREDIT");
+  const disponivel = contas.reduce((s, a) => s + a.balance, 0);
+  const reservado = contas.reduce((s, a) => s + (a.reserved ?? []).reduce((r, x) => r + x.amount, 0), 0);
+  const rendaVariavel = snapshot.investments.filter(isVariableIncome).reduce((s, i) => s + i.balance, 0);
+  const investido = investedTotal(snapshot);
+
+  return {
+    disponivel,
+    reservado,
+    rendaFixa: investido - rendaVariavel,
+    rendaVariavel,
+    investido,
+    total: disponivel + reservado + investido,
+    cartoes: cartoes.reduce((s, a) => s + a.balance, 0),
+    limite: cartoes.reduce((s, a) => s + (a.creditLimit ?? 0), 0),
+    limiteLivre: cartoes.reduce((s, a) => s + (a.availableCreditLimit ?? 0), 0),
+  };
+}
+
+/** Uma aplicação, como a tela de investimentos mostra. */
+export interface InvestmentPosition {
+  key: string;
+  /** Ticker, ou a data em que foi aplicado, ou o nome do papel. */
+  label: string;
+  /** Ticker, quando é ação, fundo ou ETF. */
+  code: string | null;
+  value: number;
+  /** `balance - amountOriginal`; null quando o banco não informa o aplicado. */
+  profit: number | null;
+  quantity: number | null;
+  unitValue: number | null;
+  rate: number | null;
+  rateType: string | null;
+  issueDate: string | null;
+  dueDate: string | null;
+}
+
+export interface InvestmentGroup {
+  key: string;
+  label: string;
+  total: number;
+  /** Soma dos rendimentos conhecidos; null se nenhuma aplicação informa. */
+  profit: number | null;
+  positions: InvestmentPosition[];
+}
+
+/**
+ * Agrupa as aplicações pelo que o banco diz, sem somar coisas diferentes: o
+ * CDB separa por taxa (as caixinhas do Nubank a 115% do CDI não se misturam com
+ * o dinheiro guardado a 100%), e ação, fundo imobiliário e tesouro ficam cada
+ * um no seu grupo. Dentro do grupo, cada aplicação aparece em uma linha.
+ */
+export function investmentGroups(snapshot: BankSnapshotData): InvestmentGroup[] {
+  const groups = new Map<string, InvestmentGroup>();
+
+  for (const inv of snapshot.investments) {
+    const { key, label } = groupOf(inv);
+    const group =
+      groups.get(key) ?? { key, label, total: 0, profit: null, positions: [] };
+    const profit =
+      inv.amountOriginal != null && inv.amountOriginal > 0 ? inv.balance - inv.amountOriginal : null;
+
+    group.total += inv.balance;
+    if (profit !== null) group.profit = (group.profit ?? 0) + profit;
+    group.positions.push({
+      key: `${key}:${group.positions.length}`,
+      label: positionLabel(inv),
+      code: isVariableIncome(inv) ? (inv.code ?? null) : null,
+      value: inv.balance,
+      profit,
+      quantity: inv.quantity ?? null,
+      unitValue: inv.unitValue ?? null,
+      rate: inv.rate ?? null,
+      rateType: inv.rateType ?? null,
+      issueDate: inv.issueDate ?? null,
+      dueDate: inv.dueDate ?? null,
+    });
+    groups.set(key, group);
+  }
+
+  const list = [...groups.values()];
+  for (const group of list) group.positions.sort((a, b) => b.value - a.value);
+  return list.sort((a, b) => b.total - a.total);
+}
+
+function groupOf(inv: SnapshotInvestment): { key: string; label: string } {
+  const subtype = inv.subtype ?? "";
+  if (subtype === "CDB" || subtype === "RDB" || subtype === "LCI" || subtype === "LCA") {
+    const taxa = inv.rate && inv.rateType ? `${formatRate(inv.rate)}% do ${inv.rateType.toLowerCase()}` : null;
+    return {
+      key: taxa ? `${subtype}:${inv.rate}:${inv.rateType}` : subtype,
+      label: taxa ? `${subtype.toLowerCase()} a ${taxa}` : subtype.toLowerCase(),
+    };
+  }
+  if (subtype === "TREASURY") return { key: subtype, label: "tesouro direto" };
+  if (subtype === "REAL_ESTATE_FUND") return { key: subtype, label: "fundos imobiliários" };
+  if (subtype === "STOCK") return { key: subtype, label: "ações" };
+  if (subtype === "ETF") return { key: subtype, label: "etfs" };
+  if (subtype === "MUTUAL_FUND") return { key: subtype, label: "fundos de investimento" };
+  const label = (subtype || inv.type).toLowerCase().replace(/_/g, " ");
+  return { key: subtype || inv.type, label };
+}
+
+/** 115 -> "115"; 102.5 -> "102,5". */
+function formatRate(rate: number): string {
+  return rate.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+}
+
+function positionLabel(inv: SnapshotInvestment): string {
+  // Ação e fundo se reconhecem pelo ticker; no tesouro o código é o ISIN
+  // ("BRSTNCNTB7T1"), então vale mais o nome ("Tesouro IPCA+ 2032").
+  if (inv.code && isVariableIncome(inv)) return inv.code.toLowerCase();
+  if (inv.subtype === "TREASURY") return inv.name.toLowerCase();
+  if (inv.issueDate) return `aplicado em ${inv.issueDate.split("-").reverse().join("/")}`;
+  // "CDB - NU FINANCEIRA S.A. - SOCIEDADE DE..." -> "cdb - nu financeira s.a."
+  return inv.name.split(" - ").slice(0, 2).join(" - ").toLowerCase();
 }

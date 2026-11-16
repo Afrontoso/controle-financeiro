@@ -5,7 +5,7 @@
  * cartões e orçamentos do app não são tocados.
  */
 import { prisma } from "@/lib/prisma";
-import { pluggyClient, pluggyConfig, type PluggyAccount } from "@/lib/pluggy";
+import { pluggyClient, pluggyConfig, type PluggyAccount, type PluggyInvestment } from "@/lib/pluggy";
 import { classify, ownerKey, toBankTx, type BankSnapshotData, type PluggyAccountRef } from "@/lib/openFinance";
 
 /** Na primeira leitura, quantos dias para trás buscar. */
@@ -81,9 +81,8 @@ export async function syncOpenFinance(userId: string): Promise<SyncResult> {
     }
 
     for (const inv of await client.investments(itemId)) {
-      if ((inv.balance ?? 0) > 0) {
-        snapshot.investments.push({ type: inv.type, subtype: inv.subtype ?? null, name: inv.name, balance: inv.balance });
-      }
+      // A Pluggy manda também o que já foi resgatado, com saldo zero.
+      if ((inv.balance ?? 0) > 0) snapshot.investments.push(snapshotInvestment(inv));
     }
   }
 
@@ -157,6 +156,23 @@ function accountLabel(account: PluggyAccount): string {
   if (/^nu pagamentos/i.test(name)) return "Nubank";
   if (account.subtype === "CREDIT_CARD" && account.name.length <= 12) return `cartão ${account.name}`;
   return name;
+}
+
+function snapshotInvestment(inv: PluggyInvestment): BankSnapshotData["investments"][number] {
+  return {
+    type: inv.type,
+    subtype: inv.subtype ?? null,
+    name: inv.name,
+    balance: inv.balance,
+    code: inv.code ?? null,
+    quantity: inv.quantity ?? null,
+    unitValue: inv.value ?? null,
+    amountOriginal: inv.amountOriginal ?? null,
+    rate: inv.rate ?? null,
+    rateType: inv.rateType ?? null,
+    issueDate: inv.issueDate?.slice(0, 10) ?? null,
+    dueDate: inv.dueDate?.slice(0, 10) ?? null,
+  };
 }
 
 function snapshotAccount(account: PluggyAccount): BankSnapshotData["accounts"][number] {

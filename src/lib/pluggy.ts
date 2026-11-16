@@ -115,6 +115,18 @@ export interface PluggyInvestment {
   name: string;
   balance: number;
   status?: string | null;
+  /** Ticker de ação, fundo ou ETF. */
+  code?: string | null;
+  quantity?: number | null;
+  /** Preço unitário (cota, ou o valor do papel na renda fixa). */
+  value?: number | null;
+  /** Quanto foi aplicado: `balance - amountOriginal` é o rendimento. */
+  amountOriginal?: number | null;
+  /** 115 + "CDI" = 115% do CDI. */
+  rate?: number | null;
+  rateType?: string | null;
+  issueDate?: string | null;
+  dueDate?: string | null;
 }
 
 export interface PluggyRawTransaction {
