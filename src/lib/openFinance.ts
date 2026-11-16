@@ -1,15 +1,17 @@
-import type { Card, Transaction, TxType, Vault } from "@/lib/types";
-
 /**
  * Regras do Open Finance (Pluggy), sem acesso a rede nem banco: o servidor usa
- * para filtrar o que chega e o navegador para sugerir o que fazer na caixa de
- * entrada.
+ * para marcar o que chega. Nada daqui vira lançamento do app: a aba de open
+ * finance é só leitura.
+ *
+ * A aba hoje mostra só o retrato das contas; o extrato continua sendo guardado
+ * a cada sincronização, então `cleanDescription` e `isOutflow` ficam aqui para
+ * quando ele voltar à tela.
  *
  * O que a Pluggy manda e precisa de cuidado (visto nos dados reais):
  *  - na conta, negativo é saída; no cartão, positivo é compra e negativo é
  *    pagamento, estorno ou desconto;
- *  - "pagamento de fatura" aparece na conta E no cartão: as compras já entram
- *    pelo cartão, então os dois lados ficam de fora;
+ *  - "pagamento de fatura" aparece na conta E no cartão: o gasto já está nas
+ *    compras do cartão, então os dois lados saem do extrato;
  *  - transferências entre contas próprias vêm como "Same person transfer" /
  *    "Transfer - Internal" e não são gasto nem renda;
  *  - o Nubank aplica e resgata o saldo em RDB sozinho, e o Mercado Pago lança
@@ -38,6 +40,12 @@ export interface PluggyAccountRef {
   name: string;
 }
 
+/**
+ * "pending" é movimento de verdade e "ignored" é interno (transferência entre
+ * contas suas, pagamento de fatura, cofrinho, rendimento). "imported",
+ * "linked" e "history" ficam de linhas antigas, de quando o banco lançava no
+ * app; hoje o extrato só mostra, nunca lança.
+ */
 export type BankTxStatus = "pending" | "imported" | "linked" | "ignored" | "history";
 
 /** Transação do banco como o app guarda e mostra. */
@@ -101,29 +109,27 @@ export function ownerKey(fullName: string | null | undefined): string | null {
 }
 
 /**
- * Decide se a transação vai para a caixa de entrada ou fica de fora, e por quê.
- * `vaultNames` são os cofres do app (normalizados): movimento de cofrinho só
- * entra se houver cofre com o mesmo nome. `owner` (ver ownerKey) pega Pix para
- * você mesmo que o banco não categorizou como transferência própria.
+ * Diz se a transação é dinheiro entrando ou saindo de verdade ("pending") ou só
+ * movimento interno ("ignored"), com o motivo para o extrato mostrar. `owner`
+ * (ver ownerKey) pega Pix para você mesmo que o banco não categorizou como
+ * transferência própria.
  */
 export function classify(
   tx: PluggyTransaction,
   account: PluggyAccountRef,
-  vaultNames: Set<string>,
   owner: string | null = null,
 ): { status: "pending" | "ignored"; reason?: string } {
   const category = tx.category ?? "";
   const description = tx.description ?? "";
 
   if (category === "Credit card payment" || CARD_PAYMENT.test(description)) {
-    return { status: "ignored", reason: "pagamento de fatura: as compras já entram pelo cartão" };
+    return { status: "ignored", reason: "pagamento de fatura: o gasto está nas compras do cartão" };
   }
 
   const move = vaultMove(description);
   if (move) {
-    return vaultNames.has(normalizeName(move.name))
-      ? { status: "pending" }
-      : { status: "ignored", reason: `movimento do cofrinho "${move.name}" (crie um cofre com esse nome para acompanhar)` };
+    // Reservar e retirar do cofrinho é dinheiro andando dentro da própria conta.
+    return { status: "ignored", reason: `${move.kind === "guardar" ? "reservado no" : "retirado do"} cofrinho "${move.name}"` };
   }
 
   if (
@@ -167,38 +173,6 @@ export function toBankTx(
   };
 }
 
-/* ------------------------------------------------------------------ */
-/* Sugestões da caixa de entrada                                       */
-/* ------------------------------------------------------------------ */
-
-/** Categorias de gasto do dia a dia: viram "gasto diário" e descontam dos orçamentos. */
-const DAILY_CATEGORIES = new Set([
-  "Groceries",
-  "Eating out",
-  "Food and drinks",
-  "Taxi and ride-hailing",
-  "Public transportation",
-  "Gas stations",
-  "Pharmacy",
-  "Bakery",
-  "Convenience stores",
-]);
-
-export interface Suggestion {
-  /** "import" cria um lançamento; "link" reconhece um que você já lançou. */
-  action: "import" | "link";
-  type: TxType;
-  description: string;
-  amount: number;
-  date: string;
-  cardId: string | null;
-  vaultId: string | null;
-  /** Lançamento seu que bate com esta transação (só em "link"). */
-  match: Transaction | null;
-  /** Explicação curta para a tela. */
-  note: string;
-}
-
 /** "Compra no débito|CLEBER DA SILVA" -> "compra no débito · cleber da silva". */
 export function cleanDescription(tx: Pick<BankTx, "description" | "installmentNumber" | "totalInstallments">): string {
   let text = tx.description.split("|").map((part) => part.trim()).filter(Boolean).join(" · ");
@@ -206,118 +180,6 @@ export function cleanDescription(tx: Pick<BankTx, "description" | "installmentNu
     text += ` (${tx.installmentNumber}/${tx.totalInstallments})`;
   }
   return text.toLowerCase();
-}
-
-function daysBetween(a: string, b: string): number {
-  return Math.abs(Date.parse(`${a}T00:00:00Z`) - Date.parse(`${b}T00:00:00Z`)) / 86_400_000;
-}
-
-/** Tolerâncias para reconhecer um lançamento seu: valor quase igual e data próxima. */
-const MATCH_MAX_DAYS = 7;
-function amountsMatch(a: number, b: number): boolean {
-  return Math.abs(a - b) <= Math.max(1, Math.abs(a) * 0.02);
-}
-
-export interface SuggestionContext {
-  transactions: Transaction[];
-  cards: Card[];
-  vaults: Vault[];
-  /** Lançamentos já reconhecidos por outra transação do banco. */
-  linkedIds: Set<string>;
-  /**
-   * Outras transações do banco (para notar parcelas antecipadas: várias
-   * parcelas da mesma compra no mesmo dia).
-   */
-  bankTxs?: BankTx[];
-}
-
-/** "Jim.Com* Oticas Komfo 8/10" -> "jim.com* oticas komfo" (para agrupar parcelas). */
-function purchaseKey(tx: BankTx): string {
-  return normalizeName(tx.description).replace(/\s*\d+\/\d+\s*$/, "");
-}
-
-export function suggest(tx: BankTx, ctx: SuggestionContext): Suggestion {
-  const amount = Math.abs(tx.amount);
-  const description = cleanDescription(tx);
-  const outflow = isOutflow(tx);
-  const base = { description, amount, date: tx.date, cardId: null, vaultId: null, match: null };
-
-  // Cofrinho com cofre de mesmo nome: guardar = economia, retirar = entrada, no cofre.
-  const move = vaultMove(tx.description);
-  if (move) {
-    const vault = ctx.vaults.find((v) => normalizeName(v.name) === normalizeName(move.name)) ?? null;
-    return {
-      ...base,
-      action: "import",
-      type: move.kind === "guardar" ? "investimento" : "entrada",
-      vaultId: vault?.id ?? null,
-      note: move.kind === "guardar" ? `guardar no cofre ${vault?.name ?? move.name}` : `resgate do cofre ${vault?.name ?? move.name}`,
-    };
-  }
-
-  let type: TxType;
-  let cardId: string | null = null;
-  let note: string;
-  if (tx.accountType === "CREDIT") {
-    type = "cartao";
-    const card = ctx.cards.find((c) => c.pluggyAccountId === tx.accountId) ?? null;
-    cardId = card?.id ?? null;
-    note = card ? `compra no cartão ${card.name}` : `compra no cartão ${tx.accountName.toLowerCase()} (vincule ao cartão do app)`;
-  } else if (!outflow) {
-    type = "entrada";
-    note = "entrada na conta";
-  } else if (tx.category && DAILY_CATEGORIES.has(tx.category)) {
-    type = "gasto_diario";
-    note = "gasto do dia a dia";
-  } else {
-    type = "saida";
-    note = "saída da conta";
-  }
-
-  // Reconhecer um lançamento seu: mesma direção, valor e data próximos, não
-  // vindo do banco e ainda sem par. O mais próximo na data vence.
-  const outflowTypes: TxType[] = ["saida", "gasto_diario", "cartao"];
-  const candidates = ctx.transactions.filter(
-    (t) =>
-      t.source !== "pluggy" &&
-      !ctx.linkedIds.has(t.id) &&
-      (outflow ? outflowTypes.includes(t.type) : t.type === "entrada") &&
-      amountsMatch(t.amount, amount) &&
-      daysBetween(t.date, tx.date) <= MATCH_MAX_DAYS,
-  );
-  candidates.sort((a, b) => daysBetween(a.date, tx.date) - daysBetween(b.date, tx.date));
-  const match = candidates[0] ?? null;
-
-  if (match) {
-    return {
-      ...base,
-      action: "link",
-      type: match.type,
-      cardId: match.cardId ?? cardId,
-      vaultId: match.vaultId ?? null,
-      match,
-      note: `é o seu lançamento “${match.description}” de ${match.date.split("-").reverse().slice(0, 2).join("/")}`,
-    };
-  }
-
-  if (tx.totalInstallments && ctx.bankTxs) {
-    const key = purchaseKey(tx);
-    const sameDay = ctx.bankTxs.filter(
-      (o) => o.accountId === tx.accountId && o.date === tx.date && o.totalInstallments && purchaseKey(o) === key,
-    ).length;
-    if (sameDay > 1) {
-      // Antecipar parcelas cobra na hora: o dinheiro sai no dia, não na próxima fatura.
-      return {
-        ...base,
-        action: "import",
-        type: "saida",
-        cardId: null,
-        note: `${sameDay} parcelas desta compra no mesmo dia: antecipação, sai do saldo no dia do pagamento`,
-      };
-    }
-  }
-
-  return { ...base, action: "import", type, cardId, note };
 }
 
 /* ------------------------------------------------------------------ */

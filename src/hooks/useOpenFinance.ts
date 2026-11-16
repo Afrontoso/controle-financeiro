@@ -1,24 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { BankSnapshotData, BankTx } from "@/lib/openFinance";
-
-export interface ResolveAction {
-  id: string;
-  action: "import" | "link" | "ignore" | "restore";
-  type?: string;
-  description?: string;
-  amount?: number;
-  date?: string;
-  cardId?: string | null;
-  vaultId?: string | null;
-  transactionId?: string;
-}
+import type { BankSnapshotData } from "@/lib/openFinance";
 
 export interface SyncSummary {
   novas: number;
-  naCaixa: number;
-  ignoradas: number;
+  movimentos: number;
+  internas: number;
   atualizadas: number;
   primeiraVez: boolean;
 }
@@ -27,9 +15,6 @@ interface OpenFinanceResponse {
   enabled: boolean;
   syncedAt?: string | null;
   snapshot?: BankSnapshotData | null;
-  pending?: BankTx[];
-  ignored?: BankTx[];
-  linkedTransactionIds?: string[];
 }
 
 async function fetchOpenFinance(): Promise<OpenFinanceResponse | null> {
@@ -38,17 +23,17 @@ async function fetchOpenFinance(): Promise<OpenFinanceResponse | null> {
 }
 
 /**
- * Open Finance do usuário. `enabled` fica false para quem não é o dono das
- * credenciais do Meu Pluggy (o app é público; os bancos são de um CPF só).
+ * Open Finance do usuário, só leitura: o retrato das contas para a aba de open
+ * finance. Nada daqui vira lançamento do app.
+ *
+ * `enabled` fica false para quem não é o dono das credenciais do Meu Pluggy (o
+ * app é público; os bancos são de um CPF só).
  */
 export function useOpenFinance() {
   const [enabled, setEnabled] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [syncedAt, setSyncedAt] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<BankSnapshotData | null>(null);
-  const [pending, setPending] = useState<BankTx[]>([]);
-  const [ignored, setIgnored] = useState<BankTx[]>([]);
-  const [linkedIds, setLinkedIds] = useState<string[]>([]);
   const [syncing, setSyncing] = useState(false);
 
   const apply = useCallback((data: OpenFinanceResponse) => {
@@ -56,9 +41,6 @@ export function useOpenFinance() {
     if (data.enabled) {
       setSyncedAt(data.syncedAt ?? null);
       setSnapshot(data.snapshot ?? null);
-      setPending(data.pending ?? []);
-      setIgnored(data.ignored ?? []);
-      setLinkedIds(data.linkedTransactionIds ?? []);
     }
   }, []);
 
@@ -101,23 +83,5 @@ export function useOpenFinance() {
     }
   }, [load]);
 
-  /** Aplica decisões da caixa de entrada; tira da lista na hora e recarrega depois. */
-  const resolve = useCallback(
-    async (actions: ResolveAction[]) => {
-      const ids = new Set(actions.map((a) => a.id));
-      setPending((list) => list.filter((t) => !ids.has(t.id) || actions.find((a) => a.id === t.id)?.action === "restore"));
-      const res = await fetch("/api/open-finance/resolve", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ actions }),
-      });
-      await load();
-      if (!res.ok) throw new Error("Falha ao aplicar");
-      const { failed } = (await res.json()) as { failed: string[] };
-      return { failed };
-    },
-    [load],
-  );
-
-  return { enabled, loaded, syncedAt, snapshot, pending, ignored, linkedIds, syncing, sync, resolve, reload: load };
+  return { enabled, loaded, syncedAt, snapshot, syncing, sync, reload: load };
 }

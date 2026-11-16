@@ -1,26 +1,20 @@
 /**
  * Sincronização do Open Finance (só servidor): lê os bancos na Pluggy, guarda
- * as transações novas (já classificadas) e o retrato das contas.
+ * as transações novas (já marcadas como movimento real ou interno) e o retrato
+ * das contas. Só escreve nas tabelas do open finance: lançamentos, cofres,
+ * cartões e orçamentos do app não são tocados.
  */
 import { prisma } from "@/lib/prisma";
 import { pluggyClient, pluggyConfig, type PluggyAccount } from "@/lib/pluggy";
-import {
-  classify,
-  normalizeName,
-  ownerKey,
-  toBankTx,
-  type BankSnapshotData,
-  type PluggyAccountRef,
-} from "@/lib/openFinance";
+import { classify, ownerKey, toBankTx, type BankSnapshotData, type PluggyAccountRef } from "@/lib/openFinance";
 
 /** Na primeira leitura, quantos dias para trás buscar. */
 const FIRST_SYNC_DAYS = 60;
 /** Nas seguintes, relê esta janela para pegar compras que mudaram de PENDING para POSTED. */
 const RESYNC_DAYS = 30;
 
-/** Só o dono das credenciais usa: o Meu Pluggy lê as contas de UM CPF. */
 /**
- * Chave geral: o Open Finance só liga com OPEN_FINANCE_ENABLED=true. Desligado,
+ * Chave geral (o Meu Pluggy lê as contas de UM CPF, então é uso pessoal): o Open Finance só liga com OPEN_FINANCE_ENABLED=true. Desligado,
  * o app funciona só com lançamentos manuais e nenhuma tela de banco aparece.
  */
 export function openFinanceEnabled(): boolean {
@@ -37,16 +31,12 @@ function daysAgo(days: number): string {
   return new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
 }
 
-/** Primeiro dia do mês corrente em Brasília. */
-function currentMonthStart(): string {
-  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
-  return `${today.slice(0, 7)}-01`;
-}
-
 export interface SyncResult {
   novas: number;
-  naCaixa: number;
-  ignoradas: number;
+  /** Das novas, quantas são dinheiro entrando ou saindo de verdade. */
+  movimentos: number;
+  /** Das novas, quantas são movimento interno (transferência, fatura, cofrinho). */
+  internas: number;
   atualizadas: number;
   primeiraVez: boolean;
 }
@@ -55,17 +45,13 @@ export async function syncOpenFinance(userId: string): Promise<SyncResult> {
   const config = pluggyConfig();
   if (!config) throw new Error("Open Finance não configurado");
 
-  const [user, vaults, existingCount] = await Promise.all([
+  const [user, existingCount] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId }, select: { name: true } }),
-    prisma.vault.findMany({ where: { userId }, select: { name: true } }),
     prisma.bankTransaction.count({ where: { userId } }),
   ]);
-  const vaultNames = new Set(vaults.map((v) => normalizeName(v.name)));
   const owner = ownerKey(user?.name);
   const primeiraVez = existingCount === 0;
   const dateFrom = daysAgo(primeiraVez ? FIRST_SYNC_DAYS : RESYNC_DAYS);
-  // Na primeira vez, o que é de meses anteriores vira histórico em vez de lotar a caixa de entrada.
-  const historyBefore = primeiraVez ? currentMonthStart() : null;
 
   const client = await pluggyClient(config);
   const snapshot: BankSnapshotData = { items: [], accounts: [], investments: [] };
@@ -90,8 +76,7 @@ export async function syncOpenFinance(userId: string): Promise<SyncResult> {
       for (const raw of await client.transactions(account.id, dateFrom)) {
         const tx = toBankTx(raw, ref);
         fetched.push(tx);
-        const c = classify(raw, ref, vaultNames, owner);
-        classification.set(tx.id, historyBefore && tx.date < historyBefore && c.status === "pending" ? { status: "history" } : c);
+        classification.set(tx.id, classify(raw, ref, owner));
       }
     }
 
@@ -103,16 +88,25 @@ export async function syncOpenFinance(userId: string): Promise<SyncResult> {
   }
 
   // Grava só o que é novo; nas já conhecidas, atualiza status do banco e valor
-  // (compra PENDING vira POSTED), sem mexer na decisão que você já tomou.
+  // (compra PENDING vira POSTED).
   const known = await prisma.bankTransaction.findMany({
     where: { id: { in: fetched.map((t) => t.id) } },
     select: { id: true, bankStatus: true, amount: true, status: true, reason: true },
   });
   const knownById = new Map(known.map((k) => [k.id, k]));
   const novas = fetched.filter((t) => !knownById.has(t.id));
+  /** Marcação de uma linha que já está no banco de dados pode mudar de regra. */
+  const remarcar = (t: (typeof fetched)[number]) => {
+    const k = knownById.get(t.id);
+    const c = classification.get(t.id);
+    if (!k || !c) return false;
+    // Linhas antigas, de quando o banco lançava no app, ficam como estão.
+    if (k.status !== "pending" && k.status !== "ignored") return false;
+    return k.status !== c.status || (k.reason ?? null) !== (c.reason ?? null);
+  };
   const mudaram = fetched.filter((t) => {
     const k = knownById.get(t.id);
-    return k && (k.bankStatus !== t.bankStatus || k.amount !== t.amount);
+    return k && (k.bankStatus !== t.bankStatus || k.amount !== t.amount || remarcar(t));
   });
 
   if (novas.length > 0) {
@@ -131,27 +125,14 @@ export async function syncOpenFinance(userId: string): Promise<SyncResult> {
     });
   }
   for (const t of mudaram) {
+    const c = classification.get(t.id)!;
     await prisma.bankTransaction.update({
       where: { id: t.id },
-      data: { bankStatus: t.bankStatus, amount: t.amount },
-    });
-  }
-
-  // Movimento de cofrinho ignorado porque o cofre não existia: se agora existe,
-  // volta para a caixa de entrada (o que é de meses anteriores vira histórico).
-  const monthStart = currentMonthStart();
-  const reabertas = fetched.filter((t) => {
-    const k = knownById.get(t.id);
-    return (
-      k?.status === "ignored" &&
-      k.reason?.startsWith("movimento do cofrinho") &&
-      classification.get(t.id)?.status === "pending"
-    );
-  });
-  for (const t of reabertas) {
-    await prisma.bankTransaction.update({
-      where: { id: t.id },
-      data: t.date < monthStart ? { status: "history" } : { status: "pending", reason: null },
+      data: {
+        bankStatus: t.bankStatus,
+        amount: t.amount,
+        ...(remarcar(t) ? { status: c.status, reason: c.reason ?? null } : {}),
+      },
     });
   }
 
@@ -161,21 +142,10 @@ export async function syncOpenFinance(userId: string): Promise<SyncResult> {
     update: { data: snapshot as object, syncedAt: new Date() },
   });
 
-  // Cartões vinculados acompanham o limite que o banco informa.
-  for (const account of snapshot.accounts) {
-    if (account.type !== "CREDIT" || !account.creditLimit) continue;
-    await prisma.card.updateMany({
-      where: { userId, pluggyAccountId: account.id },
-      data: { limit: account.creditLimit },
-    });
-  }
-
   return {
     novas: novas.length,
-    naCaixa:
-      novas.filter((t) => classification.get(t.id)?.status === "pending").length +
-      reabertas.filter((t) => t.date >= monthStart).length,
-    ignoradas: novas.filter((t) => classification.get(t.id)?.status === "ignored").length,
+    movimentos: novas.filter((t) => classification.get(t.id)?.status === "pending").length,
+    internas: novas.filter((t) => classification.get(t.id)?.status === "ignored").length,
     atualizadas: mudaram.length,
     primeiraVez,
   };

@@ -7,7 +7,7 @@ import { PluggyError } from "@/lib/pluggy";
 /** Leitura dos bancos pode demorar: várias chamadas à Pluggy em sequência. */
 export const maxDuration = 60;
 
-/** "Sincronizar agora": lê os bancos e atualiza a caixa de entrada. */
+/** "Sincronizar agora": lê os bancos e atualiza o retrato das contas. */
 export async function POST() {
     try {
         const session = await getServerSession(authOptions);

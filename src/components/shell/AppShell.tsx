@@ -63,11 +63,11 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "totais", label: "totais", icon: Sigma },
   { key: "horizonte", label: "horizonte", icon: CalendarDays },
   { key: "orcamentos", label: "orçamentos", icon: Target },
-  { key: "bancos", label: "bancos", icon: Landmark },
+  { key: "bancos", label: "open finance", icon: Landmark },
 ];
 
 interface AppShellProps {
-  /** Telas que este usuário não tem (ex.: bancos sem Open Finance). */
+  /** Telas que este usuário não tem (ex.: open finance sem credenciais). */
   hiddenViews?: ViewKey[];
   /** Ordem escolhida para a barra lateral; o que faltar segue a padrão. */
   order?: ViewKey[];

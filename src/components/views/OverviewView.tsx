@@ -40,12 +40,10 @@ interface OverviewViewProps {
   plan?: ApartmentPremises | null;
   reserve: VaultBalance | null;
   fixedCost: FixedCost;
-  inboxCount?: number;
   onSelectDay: (dateStr: string) => void;
   onOpenMonth: (year: number, month: number) => void;
   onOpenApartment: () => void;
   onOpenVaults: () => void;
-  onOpenBanks?: () => void;
   onTogglePaid: (ids: string[], paid: boolean) => void;
 }
 
@@ -227,13 +225,11 @@ function AlertsCard({
   today,
   reserve,
   fixedCost,
-  inboxCount = 0,
   bills,
   monthStatus,
   forecasts,
   onSelectDay,
   onOpenApartment,
-  onOpenBanks,
   onOpenVaults,
 }: OverviewViewProps & { bills: BillDay[]; monthStatus: MonthStatus; forecasts: Forecasts }) {
   const [showAll, setShowAll] = useState(false);
@@ -321,16 +317,6 @@ function AlertsCard({
     });
   }
 
-  if (inboxCount > 0 && onOpenBanks) {
-    alerts.push({
-      id: "caixa",
-      tone: "info",
-      title: `${inboxCount} ${inboxCount === 1 ? "transação do banco" : "transações do banco"} na caixa de entrada`,
-      detail: "confirme para elas entrarem no saldo.",
-      onClick: onOpenBanks,
-    });
-  }
-
   if (reserve && fixedCost.total > 0 && reserve.saldo / fixedCost.total < 3) {
     alerts.push({
       id: "reserva",
@@ -355,7 +341,7 @@ function AlertsCard({
           ? "nada pedindo atenção"
           : `${alerts.length} ${alerts.length === 1 ? "ponto" : "pontos"} agora`
       }
-      info="o que pede atenção agora: saldo que vai ficar negativo nos próximos 30 dias, contas vencidas sem marcar, prazos do apartamento nos próximos 90 dias, faturas chegando, transações do banco esperando e reserva baixa."
+      info="o que pede atenção agora: saldo que vai ficar negativo nos próximos 30 dias, contas vencidas sem marcar, prazos do apartamento nos próximos 90 dias, faturas chegando e reserva baixa."
     >
       {alerts.length === 0 ? (
         <p className="mt-6 text-sm lowercase text-fg-subtle">tudo tranquilo por aqui.</p>

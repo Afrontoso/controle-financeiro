@@ -130,8 +130,8 @@ export function MenuView({ onOpenView, onOpenIncome, onOpenHorizon, onOpenApartm
           {onOpenBanks && (
             <MenuRow
               icon={Landmark}
-              label="bancos"
-              hint="open finance"
+              label="open finance"
+              hint="contas, investimentos e extrato"
               onClick={onOpenBanks}
               className="md:hidden"
             />
