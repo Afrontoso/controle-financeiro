@@ -12,6 +12,14 @@ interface Settings {
     apartamento?: boolean;
     ordem?: string[];
     apelidos?: Record<string, string>;
+    mesada?: { eu?: number; esposa?: number };
+}
+
+/** Porcentagem da mesada: inteiro de 0 a 100, ou nada. */
+function percentual(value: unknown): number | undefined {
+    if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+    const pct = Math.round(value);
+    return pct >= 0 && pct <= 100 ? pct : undefined;
 }
 
 /** Só o que o app entende; o resto é descartado. */
@@ -30,6 +38,15 @@ function clean(raw: unknown): Settings {
             if (ALIAS_KEY.test(key) && nome) apelidos[key] = nome;
         }
         if (Object.keys(apelidos).length > 0) out.apelidos = apelidos;
+    }
+    if (body.mesada && typeof body.mesada === "object") {
+        const { eu, esposa } = body.mesada as Record<string, unknown>;
+        const mesada: { eu?: number; esposa?: number } = {};
+        const pctEu = percentual(eu);
+        const pctEsposa = percentual(esposa);
+        if (pctEu !== undefined) mesada.eu = pctEu;
+        if (pctEsposa !== undefined) mesada.esposa = pctEsposa;
+        if (Object.keys(mesada).length > 0) out.mesada = mesada;
     }
     return out;
 }

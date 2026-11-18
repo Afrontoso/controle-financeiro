@@ -227,6 +227,20 @@ export function FinanceApp() {
     return months.flatMap((m) => m.days).filter((d) => d.dateStr >= todayStr && d.dateStr <= endStr);
   }, [transactions, budgets, cards, today, todayMonth]);
 
+  /** Este mês e os 11 seguintes: a prévia de fecho do card da mesada. */
+  const fixedMonths: MonthEntry[] = useMemo(
+    () =>
+      buildLedger({
+        transactions,
+        budgets,
+        cards,
+        today,
+        from: todayMonth,
+        to: shiftMonth(todayMonth, 11),
+      }),
+    [transactions, budgets, cards, today, todayMonth],
+  );
+
   const billsMonthEntry = useMemo(
     () => buildLedger({ transactions, budgets, cards, today, from: billsMonth, to: billsMonth })[0] ?? null,
     [transactions, budgets, cards, today, billsMonth],
@@ -636,6 +650,10 @@ export function FinanceApp() {
           onCreate={finance.createTransaction}
           onUpdateSeries={finance.updateSeries}
           onEndSeries={finance.endSeries}
+          allTransactions={allTransactions}
+          months={fixedMonths}
+          mesada={settings.mesada ?? {}}
+          onChangeMesada={(mesada) => updateSettings({ mesada })}
         />
       )}
 

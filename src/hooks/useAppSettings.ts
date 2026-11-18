@@ -14,6 +14,17 @@ export interface AppSettings {
    * do Nubank), por id do cofrinho ou da aplicação. Só a aba de open finance usa.
    */
   apelidos?: Record<string, string>;
+  /**
+   * Mesada: a fatia da renda de cada um que é dinheiro livre, em % (0 a 100).
+   * A de cada pessoa sai da renda daquela pessoa.
+   */
+  mesada?: Mesada;
+}
+
+/** Porcentagem da renda reservada como mesada, por pessoa. */
+export interface Mesada {
+  eu?: number;
+  esposa?: number;
 }
 
 /** Cópia local só para a primeira pintura não piscar; quem manda é a conta. */
@@ -41,7 +52,7 @@ function save(settings: AppSettings) {
 }
 
 function isEmpty(settings: AppSettings) {
-  return settings.apartamento === undefined && !settings.ordem && !settings.apelidos;
+  return settings.apartamento === undefined && !settings.ordem && !settings.apelidos && !settings.mesada;
 }
 
 export function useAppSettings() {

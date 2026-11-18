@@ -12,7 +12,9 @@ import {
 import { activeSeries, seriesTotalThisMonth, type Series } from "@/lib/series";
 import { Brl } from "@/components/ui/Brl";
 import { Stat, Tile } from "@/components/ui/Dashboard";
+import type { MonthEntry } from "@/lib/ledger";
 import type { TransactionPayload } from "@/hooks/useFinanceData";
+import type { Mesada } from "@/hooks/useAppSettings";
 import type { Card, Transaction, TxType } from "@/lib/types";
 
 type Kind = "entrada" | "saida" | "cartao";
@@ -34,6 +36,13 @@ interface FixedViewProps {
     },
   ) => Promise<void>;
   onEndSeries: (groupId: string, from: string) => Promise<void>;
+  /** Lançamentos dos dois, sem o filtro de pessoa: a mesada sai da renda total. */
+  allTransactions: Transaction[];
+  /** Este mês e os seguintes, projetados: o card da mesada mostra como cada um fecharia. */
+  months: MonthEntry[];
+  /** Fatia da renda que vira mesada, em %, por pessoa. */
+  mesada: Mesada;
+  onChangeMesada: (mesada: Mesada) => void;
 }
 
 /**
@@ -57,7 +66,27 @@ export function FixedView(props: FixedViewProps) {
   );
   const contas = seriesTotalThisMonth(transactions, saidas, today);
   const noCartao = seriesTotalThisMonth(transactions, cartao, today);
-  const sobra = renda - contas - noCartao;
+
+  // Mesada: as duas saem da renda da casa, a dos dois somada. A base é a renda
+  // por mês (a que o card de rendas mostra), não só o que já caiu neste mês, e
+  // não muda com o filtro de pessoa lá em cima.
+  const rendaDaCasa = somaPorMes(
+    activeSeries(props.allTransactions, ["entrada"], today).filter(
+      (s) => !isVaultSeries(props.allTransactions, s),
+    ),
+  );
+  const mesadaMinha = emCentavos((rendaDaCasa * (props.mesada.eu ?? 0)) / 100);
+  const mesadaEsposa = emCentavos((rendaDaCasa * (props.mesada.esposa ?? 0)) / 100);
+  const mesada = mesadaMinha + mesadaEsposa;
+
+  // Aplicada vira conta fixa, e aí já entra em "contas fixas": só a que ainda
+  // não foi lançada precisa sair da sobra, senão o valor contaria duas vezes.
+  const saidasTodos = activeSeries(props.allTransactions, ["saida"], today);
+  const serieMinha = mesadaSeries(saidasTodos, false);
+  const serieEsposa = mesadaSeries(saidasTodos, true);
+  const mesadaAberta =
+    (serieMinha ? 0 : mesadaMinha) + (serieEsposa ? 0 : mesadaEsposa);
+  const sobra = renda - contas - noCartao - mesadaAberta;
 
   return (
     <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-3 md:p-6">
@@ -65,7 +94,7 @@ export function FixedView(props: FixedViewProps) {
         <Tile
           title="o mês no automático"
           subtitle="só o que é fixo, neste mês"
-          info="soma do que se repete e cai neste mês: rendas e contas fixas daqui, e as parcelas e assinaturas que ficam na aba de cada cartão (pelo dia da compra). o que sobra é o espaço para o dia a dia, os gastos avulsos e o que você quer guardar."
+          info="soma do que se repete e cai neste mês: rendas e contas fixas daqui, e as parcelas e assinaturas que ficam na aba de cada cartão (pelo dia da compra). a mesada que você reservou também sai daqui. o que sobra é o espaço para o dia a dia, os gastos avulsos e o que você quer guardar."
           illustration="purse"
           className="lg:col-span-2"
         >
@@ -93,10 +122,36 @@ export function FixedView(props: FixedViewProps) {
               label="sobra para o resto"
               value={<Brl value={sobra} />}
               color={sobra < 0 ? "var(--saida)" : "var(--entrada)"}
-              hint="dia a dia, avulsos e guardar"
+              hint={
+                mesada > 0
+                  ? "sem a mesada; dia a dia, avulsos e guardar"
+                  : "dia a dia, avulsos e guardar"
+              }
             />
           </div>
         </Tile>
+
+        <MesadaTile
+          minha={{
+            pct: props.mesada.eu ?? 0,
+            valor: mesadaMinha,
+            serie: serieMinha,
+          }}
+          esposa={{
+            pct: props.mesada.esposa ?? 0,
+            valor: mesadaEsposa,
+            serie: serieEsposa,
+          }}
+          renda={rendaDaCasa}
+          total={mesada}
+          today={today}
+          months={props.months}
+          onChange={(quem, pct) =>
+            props.onChangeMesada({ ...props.mesada, [quem]: pct })
+          }
+          onCreate={props.onCreate}
+          onUpdateSeries={props.onUpdateSeries}
+        />
 
         <SeriesTile
           kind="entrada"
@@ -122,9 +177,319 @@ export function FixedView(props: FixedViewProps) {
   );
 }
 
+/** Arredonda para centavos: o valor da tela é o mesmo que vai para a conta fixa. */
+function emCentavos(valor: number): number {
+  return Math.round(valor * 100) / 100;
+}
+
+/** Nome da conta fixa que o botão "aplicar" cria; a esposa é marcada em `conjuge`. */
+const MESADA_LABEL = "mesada";
+
+/** A mesada aplicada cai sempre neste dia; só o mês de início é escolhido. */
+const MESADA_DIA = 10;
+
+/** A conta fixa da mesada de uma das pessoas, se já tiver sido aplicada. */
+function mesadaSeries(saidas: Series[], conjuge: boolean): Series | undefined {
+  return saidas.find(
+    (s) =>
+      s.label === MESADA_LABEL &&
+      Boolean(s.conjuge) === conjuge &&
+      s.nextDate !== null,
+  );
+}
+
+/** Quanto as séries dão por mês, contando só as que ainda valem. */
+function somaPorMes(series: Series[]): number {
+  return series.reduce((sum, s) => sum + (s.nextDate ? s.amount : 0), 0);
+}
+
 /** Entradas ligadas a cofre são resgates, não renda. */
 function isVaultSeries(transactions: Transaction[], s: Series): boolean {
   return transactions.some((t) => t.groupId === s.groupId && t.vaultId);
+}
+
+interface MesadaPessoa {
+  /** Fatia da renda da casa, em % (0 a 100). */
+  pct: number;
+  valor: number;
+  /** A conta fixa já criada pelo botão "aplicar", se houver. */
+  serie?: Series;
+}
+
+/**
+ * Mesada: a fatia da renda que cada um gasta como quiser, sem prestar contas.
+ * As duas saem da renda da casa, a dos dois somada. Enquanto não é aplicada,
+ * só sai da sobra do mês; aplicada, vira conta fixa e cai todo dia 10, a partir
+ * do mês escolhido. A porcentagem fica salva na conta.
+ */
+function MesadaTile({
+  minha,
+  esposa,
+  renda,
+  total,
+  today,
+  months,
+  onChange,
+  onCreate,
+  onUpdateSeries,
+}: {
+  minha: MesadaPessoa;
+  esposa: MesadaPessoa;
+  /** Renda da casa por mês: a base das duas mesadas. */
+  renda: number;
+  total: number;
+  today: Date;
+  months: MonthEntry[];
+  onChange: (quem: "eu" | "esposa", pct: number) => void;
+  onCreate: FixedViewProps["onCreate"];
+  onUpdateSeries: FixedViewProps["onUpdateSeries"];
+}) {
+  const pessoas = [
+    { quem: "eu" as const, label: "minha mesada", conjuge: false, ...minha },
+    {
+      quem: "esposa" as const,
+      label: "mesada da esposa",
+      conjuge: true,
+      ...esposa,
+    },
+  ];
+  const todayStr = toDateStr(today);
+  // Começa em um mês em que o dia 10 ainda não passou; o primeiro é o padrão.
+  const inicios = months.filter((m) => diaDezDe(m) >= todayStr);
+  const [inicio, setInicio] = useState(() => inicios[0]?.key ?? "");
+  const [busy, setBusy] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  const jaLancada = pessoas.some((p) => p.serie);
+  // Quem tem fatia e ainda não está lançada, ou está lançada por outro valor.
+  const pendentes = pessoas.filter(
+    (p) => p.valor > 0 && (!p.serie || Math.abs(p.serie.amount - p.valor) >= 0.005),
+  );
+  // Quanto o fecho do mês muda se você aplicar: o que ainda não está lançado.
+  const aPagar = pendentes.reduce(
+    (sum, p) => sum + (p.serie ? p.valor - p.serie.amount : p.valor),
+    0,
+  );
+  // O fecho mostrado é de um mês que já tem a mesada dentro: o da próxima vez
+  // em que ela cai, se já foi lançada, ou o mês escolhido para começar.
+  const proxima = pessoas
+    .map((p) => p.serie?.nextDate)
+    .filter((d): d is string => Boolean(d))
+    .sort()
+    .at(-1);
+  const mesPrevia =
+    (jaLancada
+      ? months.find((m) => m.key === proxima?.slice(0, 7))
+      : inicios.find((m) => m.key === inicio)) ?? null;
+  const fecha = mesPrevia?.days.at(-1)?.saldo ?? null;
+
+  const aplicar = async () => {
+    setBusy(true);
+    setErro(null);
+    try {
+      for (const p of pendentes) {
+        if (p.serie) {
+          await onUpdateSeries(p.serie.groupId, p.serie.nextDate ?? todayStr, {
+            amount: p.valor,
+          });
+        } else {
+          const mes = inicios.find((m) => m.key === inicio) ?? inicios[0];
+          if (!mes) throw new Error("sem mês");
+          await onCreate({
+            date: diaDezDe(mes),
+            type: "saida",
+            amount: p.valor,
+            description: MESADA_LABEL,
+            cardId: null,
+            repeatFrequency: "mensal",
+            isIndeterminate: true,
+            conjuge: p.conjuge,
+            essencial: false,
+          });
+        }
+      }
+    } catch {
+      setErro("não deu certo. tente de novo.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Tile
+      title="mesada"
+      subtitle="dinheiro livre, para gastar sem pensar"
+      info={`uma fatia da renda que fica reservada para gastar como quiser, sem prestar contas. as duas saem da renda da casa, a sua e a da esposa somadas, mesmo quando a tela está filtrada por uma pessoa. enquanto não é aplicada, ela só sai da sobra ali em cima; no aplicar ela vira uma conta fixa chamada mesada, que cai todo dia ${MESADA_DIA} do mês escolhido em diante e você edita como qualquer outra. o fecho do mês é o mesmo saldo que a visão geral mostra.`}
+      illustration="money_bag"
+      className="lg:col-span-2"
+    >
+      {renda === 0 ? (
+        <p className="mt-3 text-sm lowercase text-fg-subtle">
+          cadastre uma renda para tirar a mesada dela.
+        </p>
+      ) : (
+        <>
+          <p className="mt-0.5 text-xs lowercase text-fg-muted">
+            <Brl value={total} /> por mês · fatia da renda da casa,{" "}
+            <Brl value={renda} /> por mês
+          </p>
+          <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {pessoas.map((p) => (
+              <MesadaRow
+                key={p.quem}
+                label={p.label}
+                pct={p.pct}
+                valor={p.valor}
+                serie={p.serie}
+                comeca={mesDaPrimeira(p.serie, today)}
+                onChange={(pct) => onChange(p.quem, pct)}
+              />
+            ))}
+          </div>
+          {mesPrevia && fecha !== null && (
+            <p className="mt-3 rounded-xl bg-surface-2 px-3 py-2.5 text-xs lowercase text-fg-muted">
+              {mesPrevia.label} fecha{aPagar !== 0 && "ria"} em{" "}
+              <Brl value={fecha} className={saldoClass(fecha)} />
+              {aPagar !== 0 ? (
+                <>
+                  {" · "}com a mesada,{" "}
+                  <Brl
+                    value={fecha - aPagar}
+                    className={saldoClass(fecha - aPagar)}
+                  />
+                </>
+              ) : (
+                jaLancada && " · já com a mesada"
+              )}
+            </p>
+          )}
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs lowercase text-fg-muted">
+            {jaLancada ? (
+              <span>cai em contas fixas, todo dia {MESADA_DIA}</span>
+            ) : (
+              <>
+                <span>lançar como conta fixa, todo dia {MESADA_DIA}, a partir de</span>
+                <select
+                  value={inicio}
+                  onChange={(e) => setInicio(e.target.value)}
+                  aria-label="Mês em que a mesada começa"
+                  className="rounded-lg border border-border-base bg-surface px-2 py-1.5 text-sm lowercase outline-none focus:border-border-strong"
+                >
+                  {inicios.map((m) => (
+                    <option key={m.key} value={m.key}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() => void aplicar()}
+              disabled={busy || pendentes.length === 0}
+              className="flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-semibold lowercase text-white disabled:opacity-50"
+              style={{ background: "var(--ov-blue)" }}
+            >
+              <Check size={14} />
+              {busy
+                ? "aplicando..."
+                : pendentes.length === 0 && jaLancada
+                  ? "em dia"
+                  : jaLancada
+                    ? "atualizar"
+                    : "aplicar"}
+            </button>
+            {erro && <span style={{ color: "var(--saida)" }}>{erro}</span>}
+          </div>
+        </>
+      )}
+    </Tile>
+  );
+}
+
+/** Verde fecha no positivo, vermelho no negativo: a cor da visão geral. */
+function saldoClass(saldo: number): string {
+  return saldo < 0 ? "text-saida font-semibold" : "text-entrada font-semibold";
+}
+
+/** O dia 10 de um mês do ledger, que é quando a mesada cai. */
+function diaDezDe(mes: MonthEntry): string {
+  return toDateStr(new Date(mes.year, mes.month, MESADA_DIA));
+}
+
+/**
+ * Mês em que a conta fixa começa a cair, quando não é este: naquele mês a
+ * mesada ainda não sai, e a sobra aqui de cima não a desconta.
+ */
+function mesDaPrimeira(serie: Series | undefined, today: Date): string | null {
+  if (!serie?.nextDate) return null;
+  if (serie.nextDate.slice(0, 7) === toDateStr(today).slice(0, 7)) return null;
+  const inicio = fromDateStr(serie.nextDate);
+  return monthShortLabel(inicio.getFullYear(), inicio.getMonth());
+}
+
+/** Uma mesada: a porcentagem para digitar e quanto ela dá em reais. */
+function MesadaRow({
+  label,
+  pct,
+  valor,
+  serie,
+  comeca,
+  onChange,
+}: {
+  label: string;
+  pct: number;
+  valor: number;
+  serie?: Series;
+  /** Mês em que a conta fixa começa, quando não é este. */
+  comeca: string | null;
+  onChange: (pct: number) => void;
+}) {
+  return (
+    <div className="flex min-w-0 items-start justify-between gap-3 rounded-xl bg-surface-2 px-3 py-2.5">
+      <div className="min-w-0">
+        <span className="block text-[11px] lowercase text-fg-muted">
+          {label}
+        </span>
+        <span
+          className="block text-lg font-bold tabular"
+          style={{ color: pct > 0 ? "var(--diario)" : undefined }}
+        >
+          <Brl value={valor} />
+        </span>
+        <span className="block text-[11px] lowercase text-fg-subtle">
+          {serie ? (
+            <>
+              em contas fixas: <Brl value={serie.amount} /> todo dia {serie.day}
+              {comeca && `, a partir de ${comeca}`}
+            </>
+          ) : pct > 0 ? (
+            "da renda da casa, por mês"
+          ) : (
+            "escolha a fatia ao lado"
+          )}
+        </span>
+      </div>
+      <label className="flex shrink-0 items-center gap-1 text-xs lowercase text-fg-muted">
+        <input
+          value={pct > 0 ? String(pct) : ""}
+          onChange={(e) =>
+            onChange(
+              Math.min(
+                100,
+                Number(e.target.value.replace(/\D/g, "").slice(0, 3) || "0"),
+              ),
+            )
+          }
+          inputMode="numeric"
+          placeholder="0"
+          aria-label={`Porcentagem da ${label}`}
+          className="w-14 rounded-lg border border-border-base bg-surface px-2 py-1.5 text-center text-sm tabular outline-none focus:border-border-strong"
+        />
+        %
+      </label>
+    </div>
+  );
 }
 
 /* ------------------------------------------------------------------ */
